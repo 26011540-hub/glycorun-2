@@ -52,6 +52,7 @@ export type GameEvent =
   | { type: "day"; day: number }
   | { type: "rain"; on: boolean }
   | { type: "quiz" }
+  | { type: "quizEnd"; ok: boolean }
   | { type: "gameOver"; reason: string };
 
 export interface GameState {

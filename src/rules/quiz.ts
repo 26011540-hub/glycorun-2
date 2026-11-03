@@ -43,5 +43,6 @@ export function closeQuiz(s: GameState): void {
   s.quizDue = false;
   s.quizT = K.QUIZ_EVERY;
   s.inv = Math.max(s.inv, 1.2);
+  s.events.push({ type: "quizEnd", ok: s.mult > 0 });
   toast(s, s.mult > 0 ? MSG.quizOk : MSG.quizNo, 2.4);
 }

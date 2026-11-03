@@ -31,7 +31,9 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
 ## Técnica
 - Vite + TypeScript + Three.js. `npm run dev` (jogo), `npm test` (regras), `npm run build` (publicação).
 - Meta: 60 fps em celular intermediário. Reutilizar objetos (pools), evitar criar geometria/material por quadro.
-- Só recursos com licença livre (CC0 de preferência). Registrar autor, link e licença em `CREDITOS.md`.
+- Arte 3D feita em código (`src/render/builder.ts` junta formas simples num modelo só). Recursos externos só com
+  licença livre (CC0 de preferência), registrados em `CREDITOS.md`.
+- No modo dev, `window.__glyco` permite avançar quadros (`advance`) e salvar capturas em `.debug/` (`shot`).
 - Nunca colocar senhas, tokens ou chaves no código.
-- Explicações ao usuário em português simples (ele não programa).
+- Explicações em português simples: quem pediu o jogo não programa.
 - Nunca dizer que algo funciona sem ter rodado e verificado.

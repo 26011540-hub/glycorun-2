@@ -148,7 +148,7 @@ requestAnimationFrame(frame);
 function advance(dt: number) {
   time += dt;
   if (mode === "run") step(state, dt, rng);
-  world.update(state, state.events, mode === "run" || mode === "over" ? dt : 0, time);
+  world.update(state, state.events, mode === "run" || mode === "over" || mode === "menu" ? dt : 0, time, mode);
   for (const e of state.events) {
     if (e.type === "toast") hud.toast(e.text, e.sec);
     else if (e.type === "quiz" && mode === "run") {
@@ -179,7 +179,17 @@ if (import.meta.env.DEV) {
     __glyco: {
       get state() { return state; },
       get mode() { return mode; },
+      get drawCalls() { return world.drawCalls; },
+      world,
       advance(sec: number) { for (let i = 0; i < sec * 60; i++) advance(1 / 60); },
+      /** Desenha a cena num tamanho de tela (ex.: 390×844) e salva em .debug/<name>.jpg. */
+      async shot(name: string, w = 390, h = 844) {
+        world.resize(w, h);
+        advance(1 / 60);
+        const url = canvas.toDataURL("image/jpeg", 0.85);
+        world.resize(canvas.clientWidth, canvas.clientHeight);
+        await fetch(`/__debug/shot?name=${encodeURIComponent(name)}`, { method: "POST", body: url });
+      },
     },
   });
 }

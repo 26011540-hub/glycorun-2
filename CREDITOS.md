@@ -11,4 +11,5 @@
 | Vite | Evan You e colaboradores | https://vitejs.dev | MIT |
 
 ## Modelos 3D, sons e música
-Ainda não há recursos externos. Cada um adicionado será listado aqui com autor, link e licença.
+Nenhum recurso externo até agora. Personagem, cenários, itens, obstáculos e chefão foram modelados no próprio código
+(src/render), sem arquivos de terceiros. Cada recurso externo adicionado será listado aqui com autor, link e licença.
