@@ -9,7 +9,7 @@ const rng = createRng(1);
 /** Coloca um obstáculo à frente e corre até ele passar. */
 function runInto(s: GameState, type: ObstacleType, before: (s: GameState) => void, lead = 6) {
   s.nextRow = 1e9; // sem fileiras aleatórias
-  s.objs.push({ id: 999, kind: "obs", type, lx: 0, z: lead, done: false });
+  s.objs.push({ id: 999, kind: "obs", type, lx: 0, z: lead, y0: 0, done: false });
   let acted = false;
   for (let i = 0; i < 240; i++) {
     const o = s.objs.find((x) => x.id === 999);
@@ -75,7 +75,9 @@ describe("corredor", () => {
   it("acelera com o tempo, mais suave no toque", () => {
     const pc = createGame(false), cel = createGame(true);
     pc.nextRow = cel.nextRow = 1e9;
-    for (let i = 0; i < 60 * 60; i++) { step(pc, 1 / 60, rng); step(cel, 1 / 60, rng); }
+    for (let i = 0; i < 60 * 60; i++) {
+      for (const s of [pc, cel]) { s.g = 100; s.quizT = 99; step(s, 1 / 60, rng); }
+    }
     expect(pc.speed).toBeCloseTo(28.2, 0);
     expect(cel.speed).toBeCloseTo(25.8, 0);
   });

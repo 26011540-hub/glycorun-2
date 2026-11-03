@@ -28,3 +28,30 @@ export const HIT_INVULNERABLE = 1.6;
 export const OBSTACLE_CHANCE = 0.42;
 export const OBSTACLE_START_T = 4;
 export const ITEM_CHANCE = 0.42;
+
+// Glicemia
+export const G_DECAY = 1.1; // queda natural por segundo
+export const G_DECAY_BOOST = 1.2; // queda extra com exercício/boost
+export const G_TENIS_EXTRA = 3; // Tênis: normaliza mais rápido acima de TENIS_ABOVE
+export const TENIS_ABOVE = 120; // original: 140 com alvo até 180; ajustado ao alvo 70–140
+export const RED_LIMIT = 4; // segundos no vermelho até perder uma vida
+export const RESET_LOW = 95;
+export const RESET_HIGH = 130; // original: 150 com alvo até 180
+export const SLOW_HYPO = 0.8;
+export const SLOW_HYPER = 0.9;
+export const LANE_SPEED_HYPO = 8;
+
+// Condicionamento (0–100): começa baixo e muda o corpo do personagem
+export const COND_START = 15;
+
+// Eventos
+export const QUIZ_EVERY = 30;
+export const BOSS_EVERY_M = 500;
+export const BOSS_DUR = 10;
+export const BOSS_WIN_BONUS = 500;
+export const PLATE_FIRST = 50;
+export const PLATE_EVERY = 70;
+export const PLATE_DUR = 6.5;
+export const PLATE_BONUS = 400;
+export const POWER_FIRST = 12;
+export const DAY_CYCLE = 90; // segundos de um dia completo

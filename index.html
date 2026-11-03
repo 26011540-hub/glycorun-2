@@ -9,41 +9,110 @@
   <body>
     <div id="app">
       <canvas id="game" aria-label="Pista do jogo GlycoRun 2"></canvas>
+      <div id="tint" aria-hidden="true"></div>
 
+      <!-- HUD: só no topo, sobre o céu, para não cobrir a pista -->
       <div id="hud" class="hud" hidden>
-        <div class="pill" id="lives" aria-label="Vidas"></div>
-        <div class="pill" id="score">0</div>
-        <div class="pill dim" id="dist">0 m</div>
-        <button class="pill btn" id="pauseBtn" aria-label="Pausar">II</button>
+        <div class="gauge">
+          <div class="grow">
+            <span class="glabel">Glicemia</span>
+            <span class="gval" id="gval">100</span><small>mg/dL</small>
+            <span class="hearts" id="lives" aria-label="Vidas"></span>
+            <span class="score" id="score">0</span>
+            <button class="tool" id="pauseBtn" aria-label="Pausar">II</button>
+          </div>
+          <div class="bar" id="bar"><i id="marker"></i></div>
+          <div class="grow small">
+            <span class="zone" id="zone">Na faixa-alvo</span>
+            <span class="dim" id="dist">0 m</span>
+            <span class="dim" id="day">Dia 1</span>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="meter" title="Próxima aferição (quiz)"><span class="ring" id="qring"><b id="qt">30</b></span></div>
+          <div class="meter cond" title="Condicionamento">💪<span class="cbar"><i id="cond"></i></span></div>
+          <div class="chips" id="chips"></div>
+        </div>
+        <div class="toast" id="toast" role="status"></div>
+        <div class="plate" id="plate" hidden>
+          <span class="pv" id="pVeg">½ VEG · 0</span><span class="pp" id="pProt">¼ PROT · 0</span><span class="pc" id="pCarb">¼ CARB · 0</span>
+        </div>
       </div>
       <div id="fps" class="fps" hidden></div>
 
       <div class="overlay" id="menu">
-        <div class="panel">
+        <div class="panel scroll">
           <h1>Glyco<span>Run</span> 2</h1>
-          <p class="tag">Protótipo · etapa 1</p>
-          <p>Deslize na tela (ou use as setas): <b>◀ ▶</b> troca de faixa, <b>▲</b> pula, <b>▼</b> abaixa.</p>
-          <ul>
-            <li><b class="c-sofa">Sofá</b>: pule.</li>
-            <li><b class="c-tela">Tela</b>: abaixe.</li>
-            <li><b class="c-pilha">Pilha de telas</b>: desvie.</li>
-          </ul>
-          <button id="play">Jogar</button>
+          <p class="lead" id="intro"></p>
+          <h3>Itens do caminho</h3>
+          <div class="legend" id="legend"></div>
+          <h3>Power-ups (anel dourado)</h3>
+          <div class="legend" id="powerLegend"></div>
+          <h3>Escolha seu visual</h3>
+          <div class="skins" id="skins"></div>
+          <p class="keys" id="keys"></p>
+          <div class="btns sticky">
+            <button id="play" class="big">Jogar</button>
+            <button class="sec" id="boardBtn">Placar</button>
+            <button class="sec" id="srcBtn">Fontes (SBD)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay" id="quiz" hidden>
+        <div class="panel" role="dialog" aria-labelledby="qq">
+          <span class="qtag">Aferição de glicemia · Mito ou Verdade?</span>
+          <div class="qtext" id="qq"></div>
+          <div class="qbtns" id="qbtns"><button class="mito" id="bm">Mito</button><button id="bv">Verdade</button></div>
+          <div class="fb" id="qfb" hidden></div>
+          <div class="btns" id="qcont" hidden><button id="cont" class="big">Continuar correndo</button></div>
+        </div>
+      </div>
+
+      <div class="overlay" id="over" hidden>
+        <div class="panel scroll">
+          <h2>Fim de corrida</h2>
+          <p class="lead" id="overMsg"></p>
+          <div class="stats">
+            <div class="stat"><b id="sScore">0</b><span>Pontos</span></div>
+            <div class="stat"><b id="sTir">0%</b><span>Tempo na faixa-alvo</span></div>
+            <div class="stat"><b id="sDist">0 m</b><span>Distância · dias</span></div>
+            <div class="stat"><b id="sQuiz">0/0</b><span>Acertos no quiz</span></div>
+          </div>
+          <h3>Conquistas</h3>
+          <div class="badges" id="badges"></div>
+          <h3>Placar Rei da Glicemia</h3>
+          <form class="save" id="saveForm">
+            <input id="pname" maxlength="16" placeholder="Seu nome" autocomplete="off" aria-label="Seu nome para o placar" />
+            <button id="saveBtn" type="submit">Salvar no placar</button>
+          </form>
+          <ol class="board" id="board1"></ol>
+          <div class="btns"><button id="again" class="big">Jogar de novo</button><button class="sec" id="toMenu">Menu</button></div>
+        </div>
+      </div>
+
+      <div class="overlay" id="boardPanel" hidden>
+        <div class="panel scroll">
+          <h2>Placar Rei da Glicemia</h2>
+          <p class="lead" id="boardIntro"></p>
+          <ol class="board" id="board2"></ol>
+          <div class="btns"><button id="boardBack">Voltar</button><button class="sec" id="clearBoard">Zerar placar</button></div>
         </div>
       </div>
 
       <div class="overlay" id="pause" hidden>
         <div class="panel">
           <h2>Pausado</h2>
-          <button id="resume">Continuar</button>
+          <div class="btns"><button id="resume" class="big">Continuar</button><button class="sec" id="quit">Sair para o menu</button></div>
         </div>
       </div>
 
-      <div class="overlay" id="over" hidden>
-        <div class="panel">
-          <h2>Fim de corrida</h2>
-          <p id="overStats"></p>
-          <button id="again">Jogar de novo</button>
+      <div class="overlay" id="sources" hidden>
+        <div class="panel scroll">
+          <h2>Fontes do quiz</h2>
+          <p class="lead" id="srcIntro"></p>
+          <ul class="srcs" id="srcList"></ul>
+          <div class="btns"><button id="srcBack">Voltar</button></div>
         </div>
       </div>
     </div>
