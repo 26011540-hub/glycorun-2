@@ -1,5 +1,6 @@
 // Mensagens do jogo, copiadas do GlycoRun original.
-// Única mudança aprovada: a faixa-alvo passou de 70–180 para 70–140 mg/dL.
+// Mudanças aprovadas pelo autor: faixa-alvo de 70–180 para 70–140 mg/dL; na hipoglicemia, "visão sem cor"
+// virou "visão turva" (sintoma visual mais típico).
 
 export const MSG = {
   start: "Mantenha a glicemia no verde (70–140 mg/dL)!",
@@ -25,7 +26,7 @@ export const MSG = {
   },
   severeLow: "Hipoglicemia grave: precisou de ajuda. Corrija cedo com 15 g de carboidrato!",
   severeHigh: "Hiperglicemia grave: procure atendimento. Evite os picos!",
-  warnLow: "Glicemia baixa! Tremor e visão sem cor: pegue refrigerante comum, suco ou bala.",
+  warnLow: "Glicemia baixa! Tremor e visão turva: pegue refrigerante comum, suco ou bala.",
   warnHigh: "Glicemia alta! Visão embaçada: busque exercício e evite ultraprocessados.",
   day: (n: number) => `Dia ${n} começou! Bom dia, corredor(a).`,
   rain: "Começou a chover! Pista molhada.",

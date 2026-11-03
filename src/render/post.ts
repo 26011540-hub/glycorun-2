@@ -1,13 +1,14 @@
 import * as THREE from "three";
 
 /**
- * Sintomas na visão (como no original): hipoglicemia = visão sem cor; hiperglicemia = visão embaçada e amarelada.
+ * Sintomas na visão: hipoglicemia = visão turva e dupla (decisão do autor; o original usava visão sem cor);
+ * hiperglicemia = visão embaçada e amarelada (como no original).
  * Só é usado quando há sintoma: no resto do tempo a cena vai direto para a tela (mais leve).
  */
 
 const VERT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const FRAG = `
-uniform sampler2D tex; uniform vec2 px; uniform float gray; uniform float blur; uniform float warm;
+uniform sampler2D tex; uniform vec2 px; uniform float ghost; uniform float time; uniform float blur; uniform float warm;
 varying vec2 vUv;
 void main(){
   vec3 c = texture2D(tex, vUv).rgb;
@@ -24,8 +25,11 @@ void main(){
     s += texture2D(tex, vUv + vec2(-r.x, r.y) * 0.7).rgb * 0.1;
     c = s;
   }
-  float l = dot(c, vec3(0.299, 0.587, 0.114));
-  c = mix(c, vec3(l), gray);
+  if (ghost > 0.0) {
+    // visão dupla: uma segunda imagem deslocada que "balança" devagar
+    vec2 off = vec2(0.012 + 0.008 * sin(time * 1.7), 0.003 * sin(time * 1.1)) * ghost;
+    c = mix(c, texture2D(tex, vUv + off).rgb, 0.45 * ghost);
+  }
   float v = smoothstep(0.3, 0.8, length(vUv - 0.5));
   c = mix(c, c * vec3(1.05, 0.96, 0.72) + vec3(0.05, 0.04, 0.0), warm * 0.6);
   c = mix(c, vec3(0.85, 0.66, 0.18), warm * v * 0.5);
@@ -38,14 +42,14 @@ export class Symptoms {
   private scene = new THREE.Scene();
   private cam = new THREE.Camera();
   private mat: THREE.ShaderMaterial;
-  gray = 0;
+  ghost = 0;
   blur = 0;
   warm = 0;
 
   constructor() {
     this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
     this.mat = new THREE.ShaderMaterial({
-      uniforms: { tex: { value: this.target.texture }, px: { value: new THREE.Vector2() }, gray: { value: 0 }, blur: { value: 0 }, warm: { value: 0 } },
+      uniforms: { tex: { value: this.target.texture }, px: { value: new THREE.Vector2() }, ghost: { value: 0 }, time: { value: 0 }, blur: { value: 0 }, warm: { value: 0 } },
       vertexShader: VERT,
       fragmentShader: FRAG,
       depthTest: false,
@@ -56,7 +60,7 @@ export class Symptoms {
     this.scene.add(quad);
   }
 
-  get active(): boolean { return this.gray > 0.01 || this.blur > 0.05 || this.warm > 0.01; }
+  get active(): boolean { return this.ghost > 0.01 || this.blur > 0.05 || this.warm > 0.01; }
 
   setSize(w: number, h: number, msaa: number): void {
     this.target.setSize(w, h);
@@ -66,7 +70,8 @@ export class Symptoms {
 
   render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): void {
     const u = this.mat.uniforms;
-    u.gray.value = this.gray;
+    u.ghost.value = this.ghost;
+    u.time.value = performance.now() / 1000;
     u.blur.value = this.blur * (renderer.getPixelRatio() * 2.2);
     u.warm.value = this.warm;
     renderer.setRenderTarget(this.target);

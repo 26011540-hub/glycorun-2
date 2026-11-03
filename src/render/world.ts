@@ -252,13 +252,15 @@ export class World3D {
     this.resize(this.size.w, this.size.h);
   }
 
-  /** Sintomas na visão: hipo = sem cor; hiper = embaçada e amarelada (como no original). */
+  /** Sintomas na visão: hipo = turva e dupla; hiper = embaçada e amarelada. */
   setSymptoms(g: number | null): void {
     const P = this.post;
-    P.gray = g != null && g < TARGET_LOW ? Math.min(0.9, 0.35 + (TARGET_LOW - g) / 30) : 0;
-    const b = g != null && g > TARGET_HIGH ? Math.min(1, (g - TARGET_HIGH) / 110 + 0.25) : 0;
-    P.blur = b;
-    P.warm = b * 0.9;
+    // hipo: quanto mais baixa a glicemia, mais turva e mais dupla a visão
+    const lo = g != null && g < TARGET_LOW ? Math.min(1, 0.35 + (TARGET_LOW - g) / 30) : 0;
+    const hi = g != null && g > TARGET_HIGH ? Math.min(1, (g - TARGET_HIGH) / 110 + 0.25) : 0;
+    P.ghost = lo;
+    P.blur = Math.max(hi, lo * 0.7);
+    P.warm = hi * 0.9;
   }
 
   /** Efeitos visuais dos acontecimentos do jogo. */

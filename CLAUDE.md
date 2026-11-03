@@ -15,6 +15,7 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
   54–69 amarelo (hipo), 70–140 verde, 141–250 amarelo (hiper), >250 vermelho.
 - Visuais do personagem: Corredor, Fone de ouvido, Mochila de hidratação, ACS (substitui o Estetoscópio).
 - O corpo do personagem fica mais largo com condicionamento baixo (decisão do usuário), de forma suave e não caricata.
+- Hipoglicemia aparece como visão turva e dupla (decisão do usuário; o original usava visão sem cor).
 
 ## Arquitetura (manter separado)
 - `src/content/` — textos, quiz, itens, conquistas. Só dados.
