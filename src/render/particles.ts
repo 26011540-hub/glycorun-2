@@ -37,6 +37,8 @@ export class Particles {
   private free: P[] = [];
   private c = new THREE.Color();
   private uniforms = { scale: { value: 300 } };
+  /** Fração das partículas que aparecem (qualidade gráfica). */
+  density = 1;
 
   constructor() {
     const g = new THREE.BufferGeometry();
@@ -54,6 +56,8 @@ export class Particles {
 
   emit(x: number, y: number, z: number, color: number, n: number, o: { speed?: number; up?: number; size?: number; life?: number; grav?: number; vz?: number; spread?: number } = {}): void {
     this.c.setHex(color);
+    n = n * this.density;
+    n = Math.floor(n) + (Math.random() < n % 1 ? 1 : 0);
     for (let i = 0; i < n; i++) {
       if (this.list.length >= MAX) return;
       const p = this.free.pop() ?? ({} as P);

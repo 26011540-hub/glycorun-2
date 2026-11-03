@@ -96,20 +96,3 @@ export class Hud {
     }
   }
 }
-
-/**
- * Sintomas na tela (como no original): hipo = visão sem cor; hiper = visão embaçada e amarelada.
- * Na etapa 5 isso passa para dentro do 3D (mais leve no celular).
- */
-export function setSymptoms(canvas: HTMLCanvasElement, tint: HTMLElement, g: number | null): void {
-  let filter = "";
-  let blur = 0;
-  if (g != null && g < TARGET_LOW) filter = `grayscale(${Math.min(0.9, 0.35 + (TARGET_LOW - g) / 30).toFixed(2)})`;
-  else if (g != null && g > TARGET_HIGH) {
-    blur = Math.min(1, (g - TARGET_HIGH) / 110 + 0.25);
-    filter = `blur(${(blur * 3).toFixed(1)}px) sepia(${(0.25 * blur).toFixed(2)})`;
-  }
-  if (canvas.style.filter !== filter) canvas.style.filter = filter;
-  const op = (blur * 0.9).toFixed(2);
-  if (tint.style.opacity !== op) tint.style.opacity = op;
-}

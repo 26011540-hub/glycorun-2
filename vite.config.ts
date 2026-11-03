@@ -15,9 +15,12 @@ function debugShots(): Plugin {
         let body = "";
         req.on("data", (c) => (body += c));
         req.on("end", () => {
-          const name = (new URL(req.url ?? "", "http://x").searchParams.get("name") || "shot").replace(/[^\w-]/g, "");
-          mkdirSync(".debug", { recursive: true });
-          writeFileSync(`.debug/${name}.jpg`, Buffer.from(body.replace(/^data:image\/\w+;base64,/, ""), "base64"));
+          const q = new URL(req.url ?? "", "http://x").searchParams;
+          const name = (q.get("name") || "shot").replace(/[^\w-]/g, "");
+          // ?icon=1 grava o ícone do jogo em public/icons (PNG); o resto vai para .debug (JPG)
+          const dir = q.get("icon") ? "public/icons" : ".debug";
+          mkdirSync(dir, { recursive: true });
+          writeFileSync(`${dir}/${name}.${q.get("icon") ? "png" : "jpg"}`, Buffer.from(body.replace(/^data:image\/\w+;base64,/, ""), "base64"));
           res.end("ok");
         });
       });

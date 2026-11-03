@@ -7,6 +7,7 @@ import { pick, type Rng } from "./rng";
 import { meters, toast, type Action, type GameState, type ObstacleType, type WorldObject } from "./state";
 
 const LANES = [-1, 0, 1] as const;
+const TIMERS = ["inv", "shield", "mult", "boost", "magnet", "turbo"] as const;
 const POOL_SUM = POOL.reduce((a, [, w]) => a + w, 0);
 
 /** Comando do jogador (deslizar ou tecla). */
@@ -183,17 +184,19 @@ function tick(s: GameState, dt: number, rng: Rng): void {
     if (s.y <= 0.01 && s.jumpBuf > 0) act(s, "U");
   }
   s.slide = Math.max(0, s.slide - dt);
-  for (const k of ["inv", "shield", "mult", "boost", "magnet", "turbo"] as const) s[k] = Math.max(0, s[k] - dt);
+  for (const k of TIMERS) s[k] = Math.max(0, s[k] - dt);
 
   // glicemia
   let dg = -(K.G_DECAY + (s.boost > 0 ? K.G_DECAY_BOOST : 0)) * dt;
   if (s.turbo > 0 && s.g > K.TENIS_ABOVE) dg -= K.G_TENIS_EXTRA * dt;
-  s.doses = s.doses.filter((d) => {
+  let n = 0;
+  for (const d of s.doses) {
     const used = Math.min(dt, d.left);
     dg += d.rate * used;
     d.left -= used;
-    return d.left > 0;
-  });
+    if (d.left > 0) s.doses[n++] = d;
+  }
+  s.doses.length = n;
   s.g = Math.max(G_MIN, Math.min(G_MAX, s.g + dg));
   const z = zoneOf(s.g);
   s.totT += dt;

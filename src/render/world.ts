@@ -9,14 +9,17 @@ import { MAT, type Prefab } from "./builder";
 import { Character, type Motion } from "./character";
 import { LANE_W, ROAD_W, VIEW_FAR } from "./config";
 import { buildBoss, buildItemPrefabs, buildObstaclePrefabs, hintMaterial, KIND_COLOR, OBSTACLE_HINT } from "./items3d";
+import { QUALITY, type Quality, type QualitySettings } from "../core/quality";
 import { Particles } from "./particles";
+import { Symptoms } from "./post";
 import { Scenery } from "./scenery";
 import { Sky } from "./sky";
 
 export type ViewMode = "menu" | "count" | "run" | "pause" | "quiz" | "over";
 
 const TILE = 8; // comprimento de um ciclo das faixas pintadas na rua
-const RAIN_DROPS = 500;
+const RAIN_DROPS = 500; // máximo; a qualidade escolhe quantas aparecem
+const DUSK_SUN = new THREE.Color(0xff9a5a);
 
 function roadTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
@@ -103,6 +106,9 @@ export class World3D {
   private baseFov = 66;
   private trailAcc = 0;
   private sweatAcc = 0;
+  private q: QualitySettings = QUALITY.alta;
+  private post = new Symptoms();
+  private size = { w: 1, h: 1 };
   /** Câmera de perto (só desenvolvimento). */
   closeup: { x: number; y: number; z: number } | null = null;
 
@@ -182,6 +188,7 @@ export class World3D {
         hint.scale.set(1.9, 0.48, 1);
         hint.position.y = OBSTACLE_HINT[id].y;
         hint.name = "hint";
+        g.userData.hint = hint;
         g.add(hint);
         return g;
       }, this.scene);
@@ -193,6 +200,7 @@ export class World3D {
         const g = new THREE.Group();
         const model = prefab.make();
         model.name = "model";
+        g.userData.model = model;
         model.scale.setScalar(1.7);
         const ring = new THREE.Mesh(this.haloGeo, haloMat);
         ring.position.y = 0.03;
@@ -200,6 +208,7 @@ export class World3D {
         if (it.k === "pw") {
           const pr = new THREE.Mesh(this.powerRingGeo, this.powerRingMat);
           pr.name = "power";
+          g.userData.power = pr;
           pr.position.y = 0.95;
           g.add(pr);
         }
@@ -215,6 +224,8 @@ export class World3D {
   }
 
   resize(w: number, h: number): void {
+    this.size = { w, h };
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.q.pixelRatio));
     this.renderer.setSize(w, h, false);
     const aspect = w / h;
     this.portrait = aspect < 0.85;
@@ -223,7 +234,31 @@ export class World3D {
     this.baseFov = this.portrait ? 66 : 56;
     this.camera.fov = this.baseFov;
     this.camera.updateProjectionMatrix();
-    this.particles.setViewport(this.renderer.getDrawingBufferSize(new THREE.Vector2()).y, this.baseFov);
+    const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.particles.setViewport(buf.y, this.baseFov);
+    this.post.setSize(buf.x, buf.y, this.q.msaa);
+  }
+
+  /** Aplica um nível de qualidade gráfica (nitidez, chuva, partículas, distância do cenário). */
+  setQuality(level: Quality): void {
+    this.q = QUALITY[level];
+    this.particles.density = this.q.particles;
+    (this.rain.geometry as THREE.BufferGeometry).setDrawRange(0, this.q.rain * 2);
+    const fog = this.scene.fog as THREE.Fog;
+    fog.far = this.q.viewFar;
+    fog.near = Math.min(60, this.q.viewFar * 0.45);
+    this.camera.far = this.q.viewFar + 25;
+    this.sky.group.scale.setScalar((this.q.viewFar + 15) / (VIEW_FAR + 10)); // o céu cabe dentro da distância de desenho
+    this.resize(this.size.w, this.size.h);
+  }
+
+  /** Sintomas na visão: hipo = sem cor; hiper = embaçada e amarelada (como no original). */
+  setSymptoms(g: number | null): void {
+    const P = this.post;
+    P.gray = g != null && g < TARGET_LOW ? Math.min(0.9, 0.35 + (TARGET_LOW - g) / 30) : 0;
+    const b = g != null && g > TARGET_HIGH ? Math.min(1, (g - TARGET_HIGH) / 110 + 0.25) : 0;
+    P.blur = b;
+    P.warm = b * 0.9;
   }
 
   /** Efeitos visuais dos acontecimentos do jogo. */
@@ -306,7 +341,7 @@ export class World3D {
     this.shadow.scale.set(sh, sh, sh);
 
     // cenário, rua e prato
-    this.scenery.update(s.dist, night);
+    this.scenery.update(s.dist, night, this.q.viewFar);
     this.roadTex.offset.y = (s.dist / TILE) % 1;
     this.roadMat.color.setScalar(1 - s.rain * 0.28); // pista molhada fica mais escura
     this.plateTint.visible = !!s.plate && playing;
@@ -345,7 +380,7 @@ export class World3D {
     this.hemi.intensity = 1.5 - night * 0.7 - s.rain * 0.3;
     this.hemi.groundColor.setHex(0x6b8f5a);
     this.sun.intensity = 1.9 * (1 - night * 0.9) - s.rain * 0.5;
-    this.sun.color.copy(this.tmp.setHex(0xfff4e0).lerp(new THREE.Color(0xff9a5a), L.d * 0.7));
+    this.sun.color.copy(this.tmp.setHex(0xfff4e0).lerp(DUSK_SUN, L.d * 0.7));
 
     // chuva
     const rm = this.rain.material as THREE.LineBasicMaterial;
@@ -354,7 +389,7 @@ export class World3D {
     if (this.rain.visible && dt > 0) {
       const p = this.rainPos;
       const fall = 22 * dt;
-      for (let i = 0; i < RAIN_DROPS; i++) {
+      for (let i = 0; i < this.q.rain; i++) {
         const k = i * 6;
         p[k + 1] -= fall; p[k + 4] -= fall;
         p[k] -= fall * 0.2; p[k + 3] -= fall * 0.2;
@@ -403,21 +438,22 @@ export class World3D {
 
     this.sky.update(L, s.rain, this.camera);
     (this.scene.fog as THREE.Fog).color.copy(this.sky.horizon);
-    this.renderer.render(this.scene, this.camera);
+    if (this.post.active) this.post.render(this.renderer, this.scene, this.camera);
+    else this.renderer.render(this.scene, this.camera);
   }
 
   private place(g: THREE.Object3D, o: WorldObject, s: GameState, time: number): void {
     g.position.set(o.lx * LANE_W, 0, -o.z);
     if (o.kind === "obs") {
-      const hint = g.getObjectByName("hint") as THREE.Sprite;
+      const hint = g.userData.hint as THREE.Sprite;
       hint.material = this.hintMats[o.type === "pilha" && s.turbo > 0 ? "pilhaTurbo" : o.type];
       hint.visible = o.z > 3;
       return;
     }
-    const model = g.getObjectByName("model")!;
+    const model = g.userData.model as THREE.Object3D;
     model.position.y = 0.35 + o.y0 + Math.sin(time * 4 + o.id) * 0.1;
     model.rotation.y = time * 2 + o.id;
-    const pr = g.getObjectByName("power");
+    const pr = (g.userData.power as THREE.Object3D | undefined);
     if (pr) { pr.rotation.y = time * 3; pr.position.y = 0.85 + o.y0; }
   }
 

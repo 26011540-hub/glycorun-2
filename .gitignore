@@ -6,3 +6,4 @@ dist/
 .env
 .env.*
 .debug/
+.claude/settings.local.json

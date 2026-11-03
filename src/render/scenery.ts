@@ -227,9 +227,9 @@ export class Scenery {
   }
 
   /** dist em unidades do jogo; night 0–1 acende as luzes da rua. */
-  update(dist: number, night: number): void {
+  update(dist: number, night: number, ahead = VIEW_FAR): void {
     this.group.position.z = dist;
-    const first = Math.floor((dist - 16) / CHUNK), last = Math.floor((dist + VIEW_FAR) / CHUNK);
+    const first = Math.floor((dist - 16) / CHUNK), last = Math.floor((dist + ahead) / CHUNK);
     for (const [i, list] of this.chunks) {
       if (i < first || i > last) {
         for (const { kind, slot } of list) kind.remove(slot);

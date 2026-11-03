@@ -5,12 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#14253d" />
     <meta name="description" content="GlycoRun 2: corra pelo bairro e mantenha a glicemia na faixa-alvo. Jogo educativo sobre diabetes." />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <title>GlycoRun 2</title>
   </head>
   <body>
     <div id="app" data-mode="menu">
       <canvas id="game" aria-label="Pista do jogo GlycoRun 2"></canvas>
-      <div id="tint" aria-hidden="true"></div>
       <div id="danger" aria-hidden="true"></div>
 
       <!-- HUD: só no topo, sobre o céu, para não cobrir a pista -->
@@ -70,6 +74,7 @@
           <div class="legend" id="legend"></div>
           <h3>Power-ups (anel dourado)</h3>
           <div class="legend" id="powerLegend"></div>
+          <button class="ghost wide" data-quality>⚙️ Qualidade</button>
           <div class="btns"><button class="cta" data-back>Entendi</button></div>
         </div>
       </div>
@@ -122,6 +127,7 @@
             <button class="toggle" id="tSound" role="switch" aria-checked="true">🔊 Som</button>
             <button class="toggle" id="tVibe" role="switch" aria-checked="true">📳 Vibração</button>
           </div>
+          <button class="ghost wide" data-quality>⚙️ Qualidade</button>
           <div class="btns"><button id="resume" class="cta">Continuar</button><button class="ghost" id="quit">Sair para o menu</button></div>
         </div>
       </div>

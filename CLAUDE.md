@@ -34,6 +34,10 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
 - Arte 3D feita em código (`src/render/builder.ts` junta formas simples num modelo só). Recursos externos só com
   licença livre (CC0 de preferência), registrados em `CREDITOS.md`.
 - No modo dev, `window.__glyco` permite avançar quadros (`advance`) e salvar capturas em `.debug/` (`shot`).
+- Qualidade gráfica em `src/core/quality.ts` (automática baixa um nível abaixo de ~48 fps). Sintomas de hipo/hiper
+  são desenhados no 3D (`src/render/post.ts`), só quando há sintoma.
+- Offline: `public/sw.js` guarda o jogo na primeira visita; troque `VERSION` quando mudar a estratégia de cache.
+- Publicação: `.github/workflows/deploy.yml` roda testes e publica no GitHub Pages a cada push na `main`.
 - Nunca colocar senhas, tokens ou chaves no código.
 - Explicações em português simples: quem pediu o jogo não programa.
 - Nunca dizer que algo funciona sem ter rodado e verificado.

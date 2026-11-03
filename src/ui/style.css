@@ -27,7 +27,6 @@ button { font-family: var(--display); cursor: pointer; border: 0; -webkit-tap-hi
 button:focus-visible, input:focus-visible { outline: 3px solid var(--ex); outline-offset: 2px; }
 #app { position: fixed; inset: 0; }
 #game { display: block; width: 100%; height: 100%; touch-action: none; }
-#tint { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at 50% 55%, rgba(255,235,120,.1) 30%, rgba(235,190,40,.5) 100%); }
 #danger { position: absolute; inset: 0; pointer-events: none; opacity: 0; box-shadow: inset 0 0 0 6px var(--bad), inset 0 0 60px rgba(226,72,61,.55); transition: opacity .3s; }
 #danger.on { animation: danger .8s ease-in-out infinite alternate; }
 @keyframes danger { from { opacity: .35; } to { opacity: 1; } }
@@ -173,3 +172,4 @@ h3 { font-size: 16px; font-weight: 600; margin: 14px 0 6px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+.ghost.wide { display: block; width: 100%; margin-top: 10px; }

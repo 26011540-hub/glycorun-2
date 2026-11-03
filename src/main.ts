@@ -16,7 +16,8 @@ import { World3D, type ViewMode } from "./render/world";
 import { biomeAt, BIOME_NAMES, type Biome } from "./render/scenery";
 import { bindInput } from "./input/input";
 import { audio, type Sfx } from "./audio/audio";
-import { Hud, initGaugeBar, setSymptoms, type Tone } from "./ui/hud";
+import { Hud, initGaugeBar, type Tone } from "./ui/hud";
+import { AutoQuality, QUALITY_LABEL, type QualityChoice } from "./core/quality";
 import { banner, buildStaticScreens, renderBoard, showAnswer, showGameOver, showOnly, showQuestion, type Screen } from "./ui/screens";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -45,7 +46,7 @@ audio.muted = store.getItem("glycorun2-mute") === "1";
 
 const app = $("app");
 const canvas = $<HTMLCanvasElement>("game");
-const tint = $("tint");
+
 const world = new World3D(canvas);
 world.setSkin(skin);
 const hud = new Hud();
@@ -54,6 +55,25 @@ buildStaticScreens(TOUCH, skin, (s) => { skin = s; store.setItem("glycorun2-skin
 
 new ResizeObserver(() => world.resize(canvas.clientWidth, canvas.clientHeight)).observe(canvas);
 world.resize(canvas.clientWidth, canvas.clientHeight);
+
+// ---------- Qualidade gráfica (automática ou escolhida) ----------
+const CHOICES: QualityChoice[] = ["auto", "alta", "media", "baixa"];
+const savedQ = store.getItem("glycorun2-quality") as QualityChoice;
+const autoQ = new AutoQuality(CHOICES.includes(savedQ) ? savedQ : "auto", TOUCH);
+world.setQuality(autoQ.level);
+function paintQuality() {
+  const t = `Qualidade: ${QUALITY_LABEL[autoQ.choice]}${autoQ.choice === "auto" ? ` (${QUALITY_LABEL[autoQ.level]})` : ""}`;
+  document.querySelectorAll<HTMLElement>("[data-quality]").forEach((b) => (b.textContent = "⚙️ " + t));
+}
+document.querySelectorAll<HTMLElement>("[data-quality]").forEach((b) => (b.onclick = () => {
+  const next = CHOICES[(CHOICES.indexOf(autoQ.choice) + 1) % CHOICES.length];
+  autoQ.set(next, TOUCH);
+  store.setItem("glycorun2-quality", next);
+  world.setQuality(autoQ.level);
+  paintQuality();
+  sfx("click");
+}));
+paintQuality();
 
 function setMode(m: ViewMode) {
   mode = m;
@@ -111,7 +131,7 @@ function toMenu() {
   audio.stopMusic();
   audio.setRain(0);
   $("hud").hidden = true;
-  setSymptoms(canvas, tint, null);
+  world.setSymptoms(null);
   showOnly("menu");
 }
 function togglePause() {
@@ -139,7 +159,7 @@ function finish() {
   audio.stopMusic();
   audio.setRain(0);
   sfx("over");
-  setSymptoms(canvas, tint, null);
+  world.setSymptoms(null);
   setTimeout(() => {
     showGameOver(state, MSG.overSuffix);
     $<HTMLInputElement>("pname").value = store.getItem("glycorun2-name") || "";
@@ -249,6 +269,10 @@ let fpsAcc = 0, fpsFrames = 0, hudAcc = 0;
 let last = performance.now();
 let time = 0;
 function frame(now: number) {
+  if (mode === "run") {
+    const q = autoQ.sample((now - last) / 1000);
+    if (q) { world.setQuality(q); paintQuality(); }
+  }
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   advance(dt);
@@ -283,7 +307,7 @@ function advance(dt: number) {
   if (mode === "run" && (hudAcc += dt) >= 0.08) {
     hudAcc = 0;
     hud.update(state);
-    setSymptoms(canvas, tint, state.g);
+    world.setSymptoms(state.g);
     audio.setMood(lightAt(state.t).n, state.g > TARGET_HIGH);
   }
 
@@ -312,5 +336,17 @@ if (import.meta.env.DEV) {
         await fetch(`/__debug/shot?name=${encodeURIComponent(name)}`, { method: "POST", body: url });
       },
     },
+  });
+}
+
+// Versão publicada: guarda o jogo no aparelho para abrir sem internet.
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => { /* sem modo offline */ });
+    // já na primeira visita, pede para guardar todos os arquivos que a página usou
+    navigator.serviceWorker.ready.then((reg) => {
+      const urls = performance.getEntriesByType("resource").map((e) => e.name).filter((u) => u.startsWith(location.origin));
+      reg.active?.postMessage({ cache: urls });
+    });
   });
 }
