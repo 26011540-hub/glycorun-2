@@ -12,15 +12,15 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
   return e;
 };
 
-export const OVERLAYS = ["menu", "quiz", "over", "boardPanel", "pause", "sources"] as const;
-export type Overlay = (typeof OVERLAYS)[number];
-export function showOnly(id: Overlay | null): void {
-  for (const o of OVERLAYS) $(o).hidden = o !== id;
+export const SCREENS = ["menu", "how", "quiz", "over", "boardPanel", "pause", "sources"] as const;
+export type Screen = (typeof SCREENS)[number];
+export function showOnly(id: Screen | null): void {
+  for (const o of SCREENS) $(o).hidden = o !== id;
 }
 
 const SKIN_ICON: Record<SkinId, string> = { corredor: "🏃", fone: "🎧", mochila: "🎒", acs: "🩺" };
 
-/** Monta os textos fixos do menu e das telas a partir de src/content. */
+/** Monta os textos fixos das telas a partir de src/content. */
 export function buildStaticScreens(touch: boolean, skin: SkinId, onSkin: (s: SkinId) => void): void {
   $("intro").textContent = INTRO;
   for (const [id, list, pw] of [["legend", LEGEND, false], ["powerLegend", POWER_LEGEND, true]] as const) {
@@ -34,19 +34,19 @@ export function buildStaticScreens(touch: boolean, skin: SkinId, onSkin: (s: Ski
     }
   }
   const skins = $("skins");
-  const paint = (cur: SkinId) => skins.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.skin === cur)));
+  const paint = (cur: SkinId) => skins.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.skin === cur)));
   for (const s of SKINS) {
     const b = el("button", "skin");
     b.dataset.skin = s.id;
-    b.innerHTML = `<div style="font-size:24px">${SKIN_ICON[s.id]}</div>`;
-    b.append(s.label);
+    b.setAttribute("role", "radio");
+    b.append(el("span", "ic", SKIN_ICON[s.id]), s.label);
     b.onclick = () => { onSkin(s.id); paint(s.id); };
     skins.append(b);
   }
   paint(skin);
   $("keys").textContent = touch
-    ? "Deslize na pista: para os lados troca de faixa, para cima pula, para baixo abaixa."
-    : "← → trocar faixa · ↑ pular · ↓ abaixar · P pausar. No celular: deslize na pista.";
+    ? "Deslize o dedo na pista: para os lados troca de faixa, para cima pula, para baixo abaixa."
+    : "Setas ou W A S D: ← → troca de faixa, ↑ pula, ↓ abaixa. P pausa. No celular: deslize o dedo na pista.";
   $("srcIntro").textContent = SOURCES_INTRO;
   for (const s of SOURCES) {
     const li = el("li", undefined, s.text);
@@ -87,29 +87,52 @@ export function showQuestion(q: Question): void {
 export function showAnswer(q: Question, ok: boolean): void {
   const fb = $("qfb");
   fb.innerHTML = "";
-  const st = el("strong", undefined, (ok ? "Acertou! " : "Quase! ") + (q.a ? "É verdade." : "É mito."));
-  st.style.color = ok ? "var(--ok)" : "var(--bad)";
+  fb.className = "fb " + (ok ? "ok" : "no");
+  const st = el("strong", undefined, (ok ? "✅ Acertou! " : "Quase! ") + (q.a ? "É verdade." : "É mito."));
+  st.style.color = ok ? "var(--ok2)" : "var(--bad)";
   fb.append(st, el("div", undefined, q.e), el("span", "src", "Fonte: " + q.s));
   $("qbtns").hidden = true;
   fb.hidden = false;
   $("qcont").hidden = false;
 }
 
+/** Número que "conta" até o valor final. */
+function countUp(node: HTMLElement, to: number, suffix = "", ms = 900): void {
+  const t0 = performance.now();
+  const tick = (now: number) => {
+    const k = Math.min(1, (now - t0) / ms);
+    node.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))) + suffix;
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
 export function showGameOver(s: GameState, suffix: string): void {
   const tir = timeInRange(s);
+  $("overTitle").textContent = tir > 80 ? "Que controle! 🏅" : "Fim de corrida";
   $("overMsg").textContent = s.overReason + suffix;
-  $("sScore").textContent = String(Math.round(s.score));
-  $("sTir").textContent = tir + "%";
+  countUp($("sScore"), Math.round(s.score));
+  countUp($("sTir"), tir, "%");
   $("sDist").textContent = `${Math.round(meters(s))} m · ${s.day} ${s.day > 1 ? "dias" : "dia"}`;
   $("sQuiz").textContent = `${s.qOk}/${s.qTot}`;
   const box = $("badges");
   box.innerHTML = "";
-  for (const { def, got } of achievements(s)) {
+  achievements(s).forEach(({ def, got }, i) => {
     const d = el("div", "badge " + (got ? "got" : "lock"));
+    d.style.animationDelay = `${0.3 + i * 0.12}s`;
     const t = el("div");
     t.append(el("b", undefined, def.t), document.createTextNode(got ? "Conquistada! " + def.d : def.d));
     d.append(el("span", "ic", def.ic), t);
     box.append(d);
-  }
+  });
   showOnly("over");
+}
+
+/** Letreiro grande e rápido no céu (contagem, chefão, novo bairro). */
+export function banner(html: string, count = false): void {
+  const b = $("banner");
+  b.className = "banner";
+  b.innerHTML = html;
+  void b.offsetWidth; // reinicia a animação
+  b.className = "banner show" + (count ? " count" : "");
 }

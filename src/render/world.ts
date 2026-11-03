@@ -3,16 +3,17 @@ import { item } from "../content/items";
 import type { SkinId } from "../content/texts";
 import { BOSS_DUR } from "../rules/constants";
 import { lightAt } from "../rules/environment";
-import { TARGET_HIGH, TARGET_LOW } from "../rules/glucose";
+import { TARGET_HIGH, TARGET_LOW, zoneOf } from "../rules/glucose";
 import type { GameEvent, GameState, WorldObject } from "../rules/state";
 import { MAT, type Prefab } from "./builder";
 import { Character, type Motion } from "./character";
 import { LANE_W, ROAD_W, VIEW_FAR } from "./config";
 import { buildBoss, buildItemPrefabs, buildObstaclePrefabs, hintMaterial, KIND_COLOR, OBSTACLE_HINT } from "./items3d";
+import { Particles } from "./particles";
 import { Scenery } from "./scenery";
 import { Sky } from "./sky";
 
-export type ViewMode = "menu" | "run" | "pause" | "quiz" | "over";
+export type ViewMode = "menu" | "count" | "run" | "pause" | "quiz" | "over";
 
 const TILE = 8; // comprimento de um ciclo das faixas pintadas na rua
 const RAIN_DROPS = 500;
@@ -95,6 +96,13 @@ export class World3D {
   private turn = Math.PI; // de frente para a câmera no menu
   private portrait = false;
   private tmp = new THREE.Color();
+  private particles = new Particles();
+  private menuK = 1; // 1 = câmera do menu (de frente para o personagem), 0 = câmera da corrida
+  private dip = 0; // câmera "afunda" ao pousar
+  private punch = 0; // zoom rápido ao pegar power-up
+  private baseFov = 66;
+  private trailAcc = 0;
+  private sweatAcc = 0;
   /** Câmera de perto (só desenvolvimento). */
   closeup: { x: number; y: number; z: number } | null = null;
 
@@ -106,7 +114,7 @@ export class World3D {
     const s = this.scene;
     s.fog = new THREE.Fog(0xcdeefc, 60, VIEW_FAR);
     this.sun.position.set(-8, 14, 6);
-    s.add(this.hemi, this.sun, this.sky.group, this.scenery.group);
+    s.add(this.hemi, this.sun, this.sky.group, this.scenery.group, this.particles.points);
 
     // rua: um plano só, com a textura correndo
     const roadLen = VIEW_FAR + 30;
@@ -212,8 +220,54 @@ export class World3D {
     this.portrait = aspect < 0.85;
     this.camera.aspect = aspect;
     // Em pé, a câmera abre mais o ângulo e recua um pouco para caberem as três faixas.
-    this.camera.fov = this.portrait ? 66 : 56;
+    this.baseFov = this.portrait ? 66 : 56;
+    this.camera.fov = this.baseFov;
     this.camera.updateProjectionMatrix();
+    this.particles.setViewport(this.renderer.getDrawingBufferSize(new THREE.Vector2()).y, this.baseFov);
+  }
+
+  /** Efeitos visuais dos acontecimentos do jogo. */
+  private react(e: GameEvent, s: GameState): void {
+    const x = s.px * LANE_W, P = this.particles;
+    switch (e.type) {
+      case "hit":
+      case "glucoseLife":
+        this.shake = 0.45;
+        this.hero.hit();
+        P.emit(x, 1.0, -0.4, 0xff9a3c, 18, { speed: 4, up: 3, size: 0.13, life: 0.5 });
+        P.emit(x, 0.1, 0, 0xc9c2b5, 10, { speed: 2, up: 1, size: 0.2, life: 0.6, grav: 2 });
+        break;
+      case "shieldBlock":
+        P.emit(x, 1.0, -0.3, 0x5ad1a8, 24, { speed: 4, up: 2, size: 0.12 });
+        break;
+      case "jump":
+        if (e.double) { this.hero.flip(); P.emit(x, s.y + 0.2, 0, 0xffffff, 10, { speed: 2, up: -1, size: 0.1, life: 0.4, grav: 0 }); }
+        break;
+      case "land":
+        this.dip = 0.12;
+        P.emit(x, 0.05, 0.1, 0xc9c2b5, 8, { speed: 1.6, up: 0.6, size: 0.18, life: 0.45, grav: 1.5 });
+        break;
+      case "slide":
+        P.emit(x, 0.05, 0.2, 0xc9c2b5, 10, { speed: 1.4, up: 0.5, size: 0.2, life: 0.5, grav: 1, vz: 2 });
+        break;
+      case "collect": {
+        const it = item(e.obj.type);
+        const col = e.effect === "fix" || e.effect === "insulin" ? KIND_COLOR.fix : KIND_COLOR[it.k];
+        const big = e.effect === "power" || e.effect === "ex";
+        P.emit(x, 1.0 + s.y, -0.3, col, big ? 26 : 14, { speed: big ? 3.5 : 2.5, up: 2.5, size: big ? 0.14 : 0.11, life: 0.55, vz: 2 });
+        if (e.effect === "power") { this.punch = 1; P.emit(x, 1.0 + s.y, -0.3, 0xffffff, 10, { speed: 4, up: 3, size: 0.08 }); }
+        break;
+      }
+      case "bossEnd":
+      case "plateEnd":
+      case "quizEnd": {
+        const ok = e.type === "quizEnd" ? e.ok : e.win;
+        if (!ok) break;
+        this.hero.cheer();
+        for (const c of [0xe2483d, 0xf2c230, 0x2fa866, 0x2f7fe0, 0xff6fa8]) P.emit(x, 2.2, -0.5, c, 10, { speed: 3, up: 4, size: 0.11, life: 1.2, grav: 5 });
+        break;
+      }
+    }
   }
 
   private resetDrop(i: number, y = 10 + Math.random() * 3): void {
@@ -222,12 +276,7 @@ export class World3D {
   }
 
   update(s: GameState, events: GameEvent[], dt: number, time: number, mode: ViewMode): void {
-    for (const e of events) {
-      if (e.type === "hit" || e.type === "glucoseLife") { this.shake = 0.45; this.hero.hit(); }
-      else if (e.type === "jump" && e.double) this.hero.flip();
-      else if ((e.type === "bossEnd" || e.type === "plateEnd") && e.win) this.hero.cheer();
-      else if (e.type === "quizEnd" && e.ok) this.hero.cheer();
-    }
+    for (const e of events) this.react(e, s);
     const L = lightAt(s.t);
     const night = L.n;
 
@@ -236,16 +285,17 @@ export class World3D {
     const x = s.px * LANE_W;
     this.player.position.set(x, s.y, 0);
     const playing = mode !== "menu";
-    this.turn += ((playing ? 0 : Math.PI) - this.turn) * Math.min(1, dt * 5);
+    const uiDt = Math.max(dt, mode === "menu" || mode === "count" || mode === "over" ? 1 / 60 : 0);
+    this.turn += ((playing ? 0 : Math.PI) - this.turn) * Math.min(1, uiDt * 5);
     this.player.rotation.y = this.turn;
     this.fat += (1 - s.cond / 100 - this.fat) * Math.min(1, dt * 1.5);
     this.hero.setFat(this.fat);
     let motion: Motion = "run";
-    if (mode === "menu") motion = "idle";
+    if (mode === "menu" || mode === "count") motion = "idle";
     else if (mode === "over") motion = "tired";
     else if (s.slide > 0 && s.y < 0.3) motion = "slide";
     else if (s.y > 0.02) motion = s.vy > 0 ? "jump" : "fall";
-    const animDt = mode === "pause" || mode === "quiz" ? 0 : Math.max(dt, mode === "menu" || mode === "over" ? 1 / 60 : 0);
+    const animDt = mode === "pause" || mode === "quiz" ? 0 : uiDt;
     this.hero.update(animDt, { motion, speed: s.runSpeed, lean: playing ? s.lane - s.px : 0, hypo: playing && hypo, hyper: playing && hyper });
     this.player.visible = !(s.inv > 0 && mode === "run" && Math.floor(time * 14) % 2 === 0);
     this.quizShield.visible = s.shield > 0 && playing;
@@ -314,13 +364,37 @@ export class World3D {
       (this.rain.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
     }
 
-    // câmera segue o jogador com atraso suave
+    // partículas contínuas: rastro brilhante na faixa-alvo e suor na hipo/hiper
+    if (mode === "run" && dt > 0) {
+      const P = this.particles;
+      if (zoneOf(s.g) === "g" && s.y < 0.05 && s.slide <= 0 && (this.trailAcc += dt * 26) >= 1) {
+        for (; this.trailAcc >= 1; this.trailAcc--) P.emit(x + (Math.random() - 0.5) * 0.4, 0.06, 0.2, Math.random() < 0.5 ? 0x9dffb9 : 0xfff6a8, 1, { speed: 0.4, up: 0.8, size: 0.1, life: 0.5, grav: 0, vz: s.runSpeed * 0.35 });
+      }
+      if ((hypo || hyper) && (this.sweatAcc += dt * 7) >= 1) {
+        this.sweatAcc--;
+        P.emit(x + (Math.random() - 0.5) * 0.3, s.y + 1.7, 0.05, 0x7fd0ff, 1, { speed: 0.6, up: 1, size: 0.07, life: 0.6, grav: 5 });
+      }
+    }
+    this.particles.update(mode === "pause" || mode === "quiz" ? 0 : uiDt);
+
+    // câmera: no menu fica de frente para o personagem; na corrida segue com atraso suave
+    this.menuK += ((mode === "menu" ? 1 : 0) - this.menuK) * Math.min(1, uiDt * 2.2);
+    const m = this.menuK * this.menuK * (3 - 2 * this.menuK);
     this.camX += (x * 0.7 - this.camX) * Math.min(1, dt * 6);
     this.shake = Math.max(0, this.shake - dt * 1.6);
+    this.dip = Math.max(0, this.dip - dt * 0.8);
+    this.punch = Math.max(0, this.punch - dt * 2.5);
     const sk = this.shake * this.shake;
     const back = this.portrait ? 7.6 : 6.4, up = this.portrait ? 5.6 : 4.0;
-    this.camera.position.set(this.camX + (Math.random() - 0.5) * sk, up + s.y * 0.35 + (Math.random() - 0.5) * sk, back);
-    this.camera.lookAt(this.camX * 0.9, (this.portrait ? 0 : 0.5) + s.y * 0.25, this.portrait ? -9 : -12);
+    const gx = this.camX + (Math.random() - 0.5) * sk, gy = up + s.y * 0.35 - this.dip + (Math.random() - 0.5) * sk;
+    const mx = x + (this.portrait ? 0.9 : 1.6), my = this.portrait ? 1.55 : 1.3, mz = this.portrait ? 4.6 : 3.6;
+    this.camera.position.set(gx + (mx - gx) * m, gy + (my - gy) * m, back + (mz - back) * m);
+    const lx = this.camX * 0.9, ly = (this.portrait ? 0 : 0.5) + s.y * 0.25, lz = this.portrait ? -9 : -12;
+    const tx = x + (this.portrait ? 0.15 : 0.9), ty = this.portrait ? 0.45 : 0.95;
+    this.camera.lookAt(lx + (tx - lx) * m, ly + (ty - ly) * m, lz + (0 - lz) * m);
+    // sensação de velocidade: o ângulo abre conforme acelera
+    const fov = this.baseFov + Math.min(6, Math.max(0, s.runSpeed - 18) * 0.25) * (1 - m) + this.punch * 4;
+    if (Math.abs(fov - this.camera.fov) > 0.05) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
     if (this.closeup) {
       // só para conferir o personagem de perto durante o desenvolvimento
       this.camera.position.set(x + this.closeup.x, s.y + this.closeup.y, this.closeup.z);

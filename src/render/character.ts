@@ -186,7 +186,7 @@ export class Character {
 
     // ----- acessórios de cada visual -----
     // Corredor: faixa de cabeça
-    this.p("head", new To(0.114, 0.014, 5, 16), 0xff4f8b, { y: 0.085, rx: Math.PI / 2 + 0.12 }, "none", "corredor");
+    this.p("head", new To(0.112, 0.014, 5, 16), 0xff4f8b, { y: 0.1, rx: Math.PI / 2 }, "none", "corredor");
     this.p("head", new B(0.03, 0.09, 0.012), 0xff4f8b, { x: 0.02, y: 0.03, z: 0.125, rx: 0.3, rz: 0.3 }, "none", "corredor");
     // Fone de ouvido
     this.p("head", new To(0.135, 0.016, 5, 14, Math.PI), 0x2b2250, { y: 0.02 }, "none", "fone");
