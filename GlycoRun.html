@@ -1,0 +1,1096 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>GlycoRun</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;800&display=swap">
+<style>
+/* Layout: one-screen game — canvas stage fills the frame, symptom filters + HUD float on top, controls bar below.
+   Deliberately single-theme (the game world sets its own day/night lighting), so every color is set explicitly. */
+:root{
+  --ink:#14253d; --paper:#fbfdfc; --panel:#ffffffee;
+  --ok:#2fa866; --warn:#f2a51e; --bad:#e2483d; --ex:#2f7fe0; --gold:#e8b21c; --muted:#5b6b80;
+  --line:#d7e2ea;
+  --display:"Fredoka","Trebuchet MS",system-ui,sans-serif;
+  --body:"Nunito","Segoe UI",system-ui,sans-serif;
+  color-scheme:light;
+}
+[hidden]{display:none!important}
+html,body{height:100%;overscroll-behavior:none}
+body{background:#0f1d30;color:var(--ink);font-family:var(--body);overflow:hidden;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+input{-webkit-user-select:text;user-select:text}
+#app{position:relative;height:100%;height:100dvh;display:grid;grid-template-rows:1fr auto;max-width:1000px;margin:0 auto;
+  padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+#stage{position:relative;min-height:0;overflow:hidden;background:#7cc6f2}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#blur,#tint{position:absolute;inset:0;pointer-events:none;opacity:0}
+#blur{-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  -webkit-mask-image:radial-gradient(ellipse at 50% 55%,transparent 38%,#000 82%);mask-image:radial-gradient(ellipse at 50% 55%,transparent 38%,#000 82%)}
+#tint{background:radial-gradient(ellipse at 50% 55%,rgba(255,235,120,.10) 30%,rgba(235,190,40,.5) 100%)}
+/* HUD: faixa compacta no topo; os marcadores ficam em colunas nas laterais, fora da pista. */
+.hud{position:absolute;inset:0 0 auto 0;display:flex;flex-direction:column;gap:6px;padding:8px;pointer-events:none}
+.card{background:var(--panel);border-radius:14px;padding:6px 10px;box-shadow:0 2px 0 #0002}
+.gauge{width:100%;max-width:620px;margin:0 auto;box-sizing:border-box}
+.gtop{display:flex;align-items:center;gap:8px;min-width:0}
+.glabel{display:flex;align-items:baseline;gap:6px;font-weight:800;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:auto;min-width:0}
+.gval{font-family:var(--display);font-size:19px;letter-spacing:0;text-transform:none;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.gval small{font-size:10px;color:var(--muted);font-family:var(--body)}
+.hearts{font-size:14px;letter-spacing:1px;color:var(--bad);white-space:nowrap}
+.score{font-family:var(--display);font-size:16px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dist{color:var(--muted)}
+.bar{position:relative;height:9px;border-radius:5px;margin:4px 0 2px;
+  background:linear-gradient(90deg,var(--bad) 0 5.4%,var(--warn) 5.4% 11.5%,var(--ok) 11.5% 53.8%,var(--warn) 53.8% 80.8%,var(--bad) 80.8% 100%)}
+.marker{position:absolute;top:-4px;width:5px;height:17px;border-radius:3px;background:var(--ink);border:2px solid #fff;transform:translateX(-50%);transition:left .15s linear}
+.ticks{font-size:9px;line-height:10px;color:var(--muted);font-variant-numeric:tabular-nums;position:relative;height:10px}
+.ticks span{position:absolute;transform:translateX(-50%)}
+.gfoot{display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin-top:1px}
+.zone{font-weight:800;font-size:11px;line-height:13px;min-width:0}
+.mini{font-size:10px;font-weight:800;color:var(--muted);white-space:nowrap}
+.sides{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:start}
+.rail{display:flex;flex-direction:column;gap:5px;align-items:center;width:46px}
+.tool{pointer-events:auto;touch-action:manipulation;display:grid;place-items:center;width:40px;height:40px;padding:0;border-radius:12px;background:#14253dc4;color:#fff;font-size:16px}
+.tool svg{width:14px;height:14px;fill:currentColor}
+.meter{box-sizing:border-box;width:46px;background:#ffffffd6;border-radius:11px;padding:4px 2px 3px;display:flex;flex-direction:column;align-items:center;gap:2px;box-shadow:0 1px 0 #0002}
+.mlabel{font-size:8.5px;line-height:10px;font-weight:800;color:var(--muted)}
+.ring{--p:1;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--ex) calc(var(--p)*360deg),var(--line) 0)}
+.ring span{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#fff;font-family:var(--display);font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.ring.soon{background:conic-gradient(var(--warn) calc(var(--p)*360deg),var(--line) 0);animation:soon .7s ease-in-out infinite alternate}
+@keyframes soon{to{transform:scale(1.1)}}
+.cicon{font-size:13px;line-height:15px}
+.cond{width:36px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.cond i{display:block;height:100%;background:var(--ex);width:20%;transition:width .3s}
+.chips{display:flex;flex-direction:column;gap:4px;align-items:center}
+.chip{display:flex;align-items:center;justify-content:center;gap:3px;min-width:40px;box-sizing:border-box;font-size:10px;line-height:13px;font-weight:800;padding:2px 5px;border-radius:99px;color:#fff;white-space:nowrap}
+.cfull{display:none}
+.toast{justify-self:center;align-self:start;max-width:100%;box-sizing:border-box;text-align:center;
+  background:#14253df0;color:#fff;padding:6px 10px;border-radius:11px;font-weight:700;font-size:12.5px;line-height:1.25;opacity:0;transition:opacity .2s;pointer-events:none;text-wrap:balance}
+.toast.on{opacity:1}
+.overlay{position:absolute;inset:0;display:grid;place-items:center;background:#0f1d30b8;padding:16px;overflow:auto}
+.panel{background:var(--paper);border-radius:20px;max-width:680px;width:100%;padding:22px 22px 18px;box-shadow:0 10px 40px #0005}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;line-height:1.05}
+h1{font-size:clamp(36px,7vw,56px)}
+h1 span{color:var(--ok)}
+h2{font-size:26px}
+h3{font-size:17px;margin:14px 0 6px}
+.lead{color:var(--muted);margin:6px 0 10px;font-size:15px;max-width:62ch}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px}
+.leg{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.3;padding:7px 8px;border-radius:10px;background:#fff;border:1px solid var(--line)}
+.leg b{display:block;font-size:13px}
+.leg .em{font-size:22px;line-height:1}
+.leg.pw{border-color:#f1d27a;background:#fffaf0}
+.skins{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.skin{font-family:var(--body);font-size:13px;font-weight:800;background:#fff;color:var(--ink);border:2px solid var(--line);border-radius:12px;padding:10px 8px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.skin span{font-size:26px}
+.skin[aria-pressed="true"]{border-color:var(--ok);background:#eefaf3}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+button{font-family:var(--display);font-size:18px;border:0;border-radius:12px;padding:12px 20px;cursor:pointer;background:var(--ok);color:#fff;font-weight:600}
+button.sec{background:#e8eef3;color:var(--ink)}
+button.small{font-size:14px;padding:8px 12px}
+button:focus-visible,.skin:focus-visible,input:focus-visible{outline:3px solid var(--ex);outline-offset:2px}
+.keys{font-size:13px;color:var(--muted);margin-top:8px}
+kbd{font-family:var(--body);font-weight:800;background:#e8eef3;border-radius:5px;padding:1px 6px;font-size:12px}
+.qtag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:var(--ex);padding:4px 10px;border-radius:99px;margin-bottom:10px}
+.qtext{font-size:clamp(18px,3.4vw,22px);font-weight:800;margin:4px 0 14px;line-height:1.3}
+.qbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.qbtns button{font-size:20px;padding:14px}
+.qbtns .mito{background:var(--bad)}
+.fb{margin-top:12px;padding:12px;border-radius:12px;background:#fff;border:1px solid var(--line);font-size:14px;line-height:1.45}
+.fb strong{font-family:var(--display);font-size:18px;display:block;margin-bottom:4px}
+.src{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(115px,1fr));gap:8px;margin:12px 0}
+.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
+.stat b{font-family:var(--display);font-size:24px;display:block;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted);font-weight:700}
+.badges{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.badge{display:flex;gap:10px;align-items:center;padding:10px;border-radius:12px;border:2px solid var(--line);background:#fff;font-size:12.5px;line-height:1.3}
+.badge .ic{font-size:30px}
+.badge b{display:block;font-family:var(--display);font-size:15px}
+.badge.lock{opacity:.45;filter:grayscale(1)}
+.badge.got{border-color:var(--gold);background:#fffaf0}
+.board{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px;counter-reset:pos}
+.board li{display:grid;grid-template-columns:28px 1fr auto auto;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-variant-numeric:tabular-nums;counter-increment:pos}
+.board li::before{content:counter(pos);font-family:var(--display);font-weight:700;color:var(--muted)}
+.board li.me{border-color:var(--ok);background:#eefaf3}
+.board .pts{font-family:var(--display);font-size:17px}
+.board .tir{font-size:12px;color:var(--muted)}
+.board .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}
+.save{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.save input{flex:1 1 180px;font:600 16px var(--body);padding:10px 12px;border-radius:10px;border:2px solid var(--line);min-width:0}
+.empty{color:var(--muted);font-size:13px}
+.srcs{font-size:13px;line-height:1.5;padding-left:18px}
+.srcs a{color:var(--ex)}
+.controls{display:flex;gap:6px;padding:6px 8px;padding-bottom:max(6px,env(safe-area-inset-bottom,0px));background:#0f1d30;touch-action:none}
+.controls button{flex:1 1 0;min-width:0;height:58px;padding:0;background:#24364f;font-size:22px;touch-action:none}
+.controls button:active{background:#3a5678}
+#app[data-s="menu"] .controls,#app[data-s="over"] .controls{display:none}
+#menu .btns{position:sticky;bottom:-16px;margin:12px -6px -6px;padding:8px 6px 10px;background:var(--paper);border-radius:12px 12px 0 0;z-index:1}
+#menu .btns #play{flex:1 1 100%;padding:14px}
+#menu .btns .sec{flex:1 1 0;font-size:14px;padding:10px 6px;white-space:nowrap}
+@media (max-width:560px){
+  .panel{padding:16px 14px 12px}
+  .legend{grid-template-columns:1fr 1fr}
+  .leg{font-size:11px;padding:6px;gap:5px}.leg b{font-size:12px}.leg .em{font-size:18px}
+  .skins{grid-template-columns:repeat(4,1fr);gap:5px}.skin{font-size:10.5px;padding:7px 3px}.skin span{font-size:22px}
+  .lead{font-size:14px}
+}
+@media (min-width:700px) and (min-height:501px){
+  .hud{padding:10px 12px}
+  .gval{font-size:22px}.score{font-size:19px}.hearts{font-size:17px}.glabel{font-size:12px}.zone{font-size:12px}.mini{font-size:11px}.bar{height:12px}.marker{height:20px}
+  .rail{width:64px}.meter{width:64px;padding:6px 3px 5px}.mlabel{font-size:10px}.ring{width:42px;height:42px}.ring span{width:33px;height:33px;font-size:14px}.cond{width:50px;height:8px}
+  .sides{grid-template-columns:auto 1fr auto}.chips{align-items:flex-start}.cfull{display:inline}.toast{font-size:14px;padding:9px 14px;max-width:520px}
+  .controls{justify-content:center}.controls button{flex:0 0 76px;height:50px}
+}
+/* Celular deitado: controles flutuam nos cantos e a pista usa a altura inteira. */
+@media (max-height:500px) and (orientation:landscape){
+  #app{grid-template-rows:1fr}
+  .controls{position:absolute;left:0;right:0;bottom:0;background:none;padding:8px;padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px));pointer-events:none}
+  #app:not([data-s="run"]) .controls{display:none}
+  .controls button{flex:0 0 68px;height:58px;background:#24364fb0;pointer-events:auto}
+  #cL{order:1}#cR{order:2}#cD{order:3;margin-left:auto}#cU{order:4}
+  .hud{padding:5px 8px;gap:4px}.gauge{max-width:440px;padding:4px 10px}.ticks,.gfoot .mini{display:none}.bar{margin-bottom:6px}.gval{font-size:17px}
+  .tool{width:34px;height:34px}.meter{padding:3px 2px 2px}.ring{width:27px;height:27px}.ring span{width:21px;height:21px;font-size:10px}.mlabel{font-size:8px}.toast{max-width:380px;font-size:11.5px;padding:4px 8px}
+}
+@media (pointer:coarse){#blur{-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}}
+@media (prefers-reduced-motion:reduce){.toast,.marker,.cond i{transition:none}.ring.soon{animation:none}}
+</style>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="game" aria-label="Pista do jogo GlycoRun"></canvas>
+    <div id="tint"></div>
+    <div id="blur"></div>
+
+    <div class="hud" id="hud" hidden>
+      <div class="card gauge">
+        <div class="gtop">
+          <div class="glabel"><span>Glicemia</span><span class="gval" id="gval">100 <small>mg/dL</small></span></div>
+          <span class="hearts" id="hearts" role="img" aria-label="Vidas">♥♥♥</span>
+          <span class="score" id="score" title="Pontos">0</span>
+          <span class="score dist" id="dist" title="Distância">0 m</span>
+        </div>
+        <div class="bar"><div class="marker" id="marker"></div></div>
+        <div class="ticks"><span style="left:5.4%">54</span><span style="left:11.5%">70</span><span style="left:53.8%">180</span><span style="left:80.8%">250</span></div>
+        <div class="gfoot"><div class="zone" id="zone">Na faixa-alvo</div><span class="mini" id="day">Dia 1</span></div>
+      </div>
+      <div class="sides">
+        <div class="rail">
+          <button class="tool" id="cP" aria-label="Pausar"><svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2" y="1" width="3.6" height="12" rx="1"/><rect x="8.4" y="1" width="3.6" height="12" rx="1"/></svg></button>
+          <button class="tool" id="cM" aria-label="Som ligado">🔊</button>
+          <div class="chips" id="chips"></div>
+        </div>
+        <div class="toast" id="toast" role="status"></div>
+        <div class="rail">
+          <div class="meter" title="Próxima aferição de glicemia (quiz)"><div class="ring" id="qring"><span id="qt">30</span></div><span class="mlabel">Aferição</span></div>
+          <div class="meter" title="Condicionamento"><span class="cicon" aria-hidden="true">💪</span><div class="cond"><i id="cond"></i></div><span class="mlabel">Condic.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="menu">
+      <div class="panel">
+        <h1>Glyco<span>Run</span></h1>
+        <p class="lead">Corra pela cidade, dia e noite, e mantenha a glicemia na faixa-alvo de 70 a 180 mg/dL. Na faixa verde seus pontos dobram. A cada 30 segundos tem quiz de Mito ou Verdade.</p>
+        <h3>Itens do caminho</h3>
+        <div class="legend">
+          <div class="leg"><span class="em">🍎</span><div><b>Comida de verdade e fibras</b>Sobem a glicose devagar e melhoram o condicionamento.</div></div>
+          <div class="leg"><span class="em">🥤</span><div><b>Ultraprocessados</b>Pico glicêmico rápido. Bip bip!</div></div>
+          <div class="leg"><span class="em">🚲</span><div><b>Atividade física</b>Baixa a glicose e aumenta a sensibilidade à insulina.</div></div>
+          <div class="leg"><span class="em">💧</span><div><b>Água</b>Hidratação. Não muda a glicemia.</div></div>
+          <div class="leg"><span class="em">💊</span><div><b>Medicação</b>Baixa a glicose. Com glicemia baixa, risco de hipoglicemia.</div></div>
+          <div class="leg"><span class="em">🛋️</span><div><b>Sedentarismo</b>Sofá: pule. Tela: abaixe. Pilha de telas: desvie ou pulo duplo.</div></div>
+        </div>
+        <h3>Power-ups (anel dourado)</h3>
+        <div class="legend">
+          <div class="leg pw"><span class="em">🧲</span><div><b>Ímã de Fibras</b>Puxa frutas, vegetais e aveia por 10 s.</div></div>
+          <div class="leg pw"><span class="em">👟</span><div><b>Tênis do Boost</b>Pulo duplo alto e glicemia normaliza 2× mais rápido.</div></div>
+          <div class="leg pw"><span class="em">🛡️</span><div><b>Escudo de Insulina</b>Segura o pico do próximo ultraprocessado.</div></div>
+          <div class="leg pw"><span class="em">🚰</span><div><b>Água Turbo</b>Na glicemia alta, hidrata e ajuda o rim a eliminar parte do excesso.</div></div>
+        </div>
+        <h3>Escolha seu visual</h3>
+        <div class="skins" id="skins">
+          <button class="skin" data-skin="corredor" aria-pressed="true"><span>🏃</span>Corredor</button>
+          <button class="skin" data-skin="fone" aria-pressed="false"><span>🎧</span>Fone de ouvido</button>
+          <button class="skin" data-skin="mochila" aria-pressed="false"><span>🎒</span>Mochila de hidratação</button>
+          <button class="skin" data-skin="esteto" aria-pressed="false"><span>🩺</span>Estetoscópio</button>
+        </div>
+        <div class="btns"><button id="play">Jogar</button><button class="sec" id="boardBtn">Placar</button><button class="sec" id="srcBtn">Fontes (SBD)</button><button class="sec" id="mMute" aria-label="Som ligado">🔊 Som</button></div>
+        <div class="keys" id="keys"><kbd>←</kbd><kbd>→</kbd> trocar faixa · <kbd>↑</kbd> pular · <kbd>↓</kbd> abaixar · <kbd>P</kbd> pausar. No celular: deslize ou use os botões.</div>
+      </div>
+    </div>
+
+    <div class="overlay" id="quiz" hidden>
+      <div class="panel" role="dialog" aria-labelledby="qq">
+        <span class="qtag">Aferição de glicemia · Mito ou Verdade?</span>
+        <div class="qtext" id="qq"></div>
+        <div class="qbtns" id="qbtns"><button class="mito" id="bm">Mito</button><button id="bv">Verdade</button></div>
+        <div class="fb" id="qfb" hidden></div>
+        <div class="btns" id="qcont" hidden><button id="cont">Continuar correndo</button></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="over" hidden>
+      <div class="panel">
+        <h2 id="overTitle">Fim de corrida</h2>
+        <p class="lead" id="overMsg"></p>
+        <div class="stats">
+          <div class="stat"><b id="sScore">0</b><span>Pontos</span></div>
+          <div class="stat"><b id="sTir">0%</b><span>Tempo na faixa-alvo</span></div>
+          <div class="stat"><b id="sDist">0 m</b><span>Distância · dias</span></div>
+          <div class="stat"><b id="sQuiz">0/0</b><span>Acertos no quiz</span></div>
+        </div>
+        <h3>Conquistas</h3>
+        <div class="badges" id="badges"></div>
+        <h3>Placar Rei da Glicemia</h3>
+        <form class="save" id="saveForm">
+          <input id="pname" maxlength="16" placeholder="Seu nome" autocomplete="off" aria-label="Seu nome para o placar">
+          <button id="saveBtn" type="submit">Salvar no placar</button>
+        </form>
+        <ol class="board" id="board1"></ol>
+        <div class="btns"><button id="again">Jogar de novo</button><button class="sec" id="toMenu">Menu</button></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="boardPanel" hidden>
+      <div class="panel">
+        <h2>Placar Rei da Glicemia</h2>
+        <p class="lead">Melhores corridas neste aparelho. Ideal para a apresentação na turma ou na UBS, todos jogando no mesmo computador ou celular.</p>
+        <ol class="board" id="board2"></ol>
+        <div class="btns"><button id="boardBack">Voltar</button><button class="sec small" id="clearBoard">Zerar placar</button></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="pause" hidden>
+      <div class="panel"><h2>Pausado</h2><div class="btns"><button id="resume">Continuar</button><button class="sec" id="quit">Sair para o menu</button></div></div>
+    </div>
+
+    <div class="overlay" id="sources" hidden>
+      <div class="panel">
+        <h2>Fontes do quiz</h2>
+        <p class="lead">As perguntas seguem as Diretrizes da Sociedade Brasileira de Diabetes (SBD). Conteúdo educativo: não substitui consulta com profissional de saúde.</p>
+        <ul class="srcs">
+          <li>Diretriz SBD: Diagnóstico de diabetes mellitus (atualização jul/2024): jejum, HbA1c e TTGO de 1 h e 2 h.</li>
+          <li>Diretriz SBD: Atividade física e exercício no pré-diabetes e DM2 — <a href="https://diretriz.diabetes.org.br/atividade-fisica-e-exercicio-no-pre-diabetes-e-dm2/" target="_blank" rel="noopener">diretriz.diabetes.org.br</a></li>
+          <li>Diretriz SBD: Terapia nutricional no pré-diabetes e DM2; Terapia nutricional no DM1 (2024).</li>
+          <li>Diretriz SBD: Diagnóstico e prevenção de úlceras no pé diabético — <a href="https://diretriz.diabetes.org.br/diagnostico-e-prevencao-de-ulceras-no-pe-diabetico/" target="_blank" rel="noopener">diretriz.diabetes.org.br</a></li>
+          <li>SBD: classificação e tratamento da hipoglicemia (níveis 1, 2 e 3; regra dos 15).</li>
+          <li>Portal das diretrizes: <a href="https://diretriz.diabetes.org.br/" target="_blank" rel="noopener">diretriz.diabetes.org.br</a></li>
+        </ul>
+        <div class="btns"><button id="srcBack">Voltar</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls" id="controls">
+    <button id="cL" aria-label="Faixa da esquerda">◀</button>
+    <button id="cU" aria-label="Pular">▲</button>
+    <button id="cD" aria-label="Abaixar">▼</button>
+    <button id="cR" aria-label="Faixa da direita">▶</button>
+      </div>
+</div>
+
+<script>
+(()=>{
+// ================= Conteúdo =================
+const QUESTIONS = [
+ {q:"Glicemia de jejum entre 100 e 125 mg/dL é considerada normal.",a:false,
+  e:"É pré-diabetes. Normal é abaixo de 100 mg/dL; a partir de 126 mg/dL já é critério de diabetes.",s:"Diretriz SBD — Diagnóstico de DM (2024)"},
+ {q:"Glicemia de jejum ≥ 126 mg/dL ou hemoglobina glicada (HbA1c) ≥ 6,5% são critérios para diagnosticar diabetes.",a:true,
+  e:"Sim. Sem sintomas claros, um exame alterado isolado deve ser confirmado; jejum ≥ 126 e HbA1c ≥ 6,5% na mesma amostra já fecham o diagnóstico.",s:"Diretriz SBD — Diagnóstico de DM (2024)"},
+ {q:"Um único exame alterado, sem nenhum sintoma, já basta para fechar o diagnóstico de diabetes.",a:false,
+  e:"Se só um exame vier alterado, a diretriz orienta repetir para confirmar. A exceção é a glicemia ao acaso ≥ 200 mg/dL com sintomas típicos.",s:"Diretriz SBD — Diagnóstico de DM (2024)"},
+ {q:"A glicemia 1 hora após a curva glicêmica (TTGO) passou a ser usada no diagnóstico de diabetes.",a:true,
+  e:"Na atualização de 2024, a glicemia de 1 h no TTGO ≥ 209 mg/dL entrou como critério, e a SBD a considera mais prática que a de 2 h.",s:"Diretriz SBD — Diagnóstico de DM (2024)"},
+ {q:"Quem tem diabetes nunca mais pode comer carboidratos.",a:false,
+  e:"Mito. O foco é a qualidade: preferir vegetais, frutas, leguminosas, leite e grãos integrais e reduzir carboidratos refinados e açúcar adicionado.",s:"Diretriz SBD — Terapia nutricional no pré-DM e DM2"},
+ {q:"Pessoas com diabetes podem comer frutas.",a:true,
+  e:"Frutas fazem parte de uma alimentação saudável. São fontes de carboidrato com fibras, vitaminas e minerais, em porções adequadas.",s:"Diretriz SBD — Terapia nutricional no DM1 e DM2"},
+ {q:"Comer fibras (verduras, frutas, grãos integrais) ajuda no controle da glicemia.",a:true,
+  e:"A diretriz recomenda pelo menos 25 g de fibras por dia no DM2 para melhorar o controle glicêmico, de preferência vindas dos alimentos.",s:"Diretriz SBD — Terapia nutricional no pré-DM e DM2"},
+ {q:"150 minutos por semana de atividade física moderada ajudam a prevenir o diabetes tipo 2.",a:true,
+  e:"No pré-diabetes, a SBD recomenda no mínimo 150 min/semana de atividade aeróbica moderada e perda de pelo menos 7% do peso.",s:"Diretriz SBD — Atividade física no pré-DM e DM2"},
+ {q:"Quem tem diabetes tipo 2 pode ficar vários dias seguidos sem se exercitar, desde que compense no fim de semana.",a:false,
+  e:"A orientação é não ficar mais de 2 dias seguidos sem atividade, combinando exercícios aeróbicos e de força.",s:"Diretriz SBD — Atividade física no pré-DM e DM2"},
+ {q:"Ficar muito tempo sentado faz mal mesmo para quem pratica exercício.",a:true,
+  e:"O tempo sentado prolongado está ligado a piores desfechos independentemente do exercício. Vale levantar e se mexer ao longo do dia.",s:"Diretriz SBD — Atividade física no pré-DM e DM2"},
+ {q:"Hipoglicemia é quando a glicose no sangue fica abaixo de 70 mg/dL.",a:true,
+  e:"Nível 1: abaixo de 70. Nível 2: abaixo de 54. Nível 3: quando a pessoa fica confusa ou desmaia e precisa de ajuda de outra pessoa.",s:"SBD — Classificação da hipoglicemia"},
+ {q:"Na hipoglicemia leve, deve-se comer 15 g de carboidrato rápido e medir a glicemia de novo após 15 minutos.",a:true,
+  e:"É a regra dos 15. Exemplos: 1 colher de sopa de açúcar ou 150 ml de refrigerante comum. Se continuar abaixo de 70, repete.",s:"SBD — Tratamento da hipoglicemia"},
+ {q:"Para corrigir uma hipoglicemia, refrigerante diet ou zero funciona tão bem quanto o comum.",a:false,
+  e:"Mito. Refrigerante diet não tem açúcar e não sobe a glicose. A correção precisa de carboidrato rápido de verdade.",s:"SBD — Tratamento da hipoglicemia"},
+ {q:"Tremor, suor frio, tontura e fome repentina podem ser sinais de hipoglicemia.",a:true,
+  e:"São sintomas clássicos. Ao percebê-los, quem tem diabetes deve medir a glicemia e corrigir se estiver abaixo de 70 mg/dL.",s:"SBD — Hipoglicemia"},
+ {q:"Pessoas com diabetes devem olhar os próprios pés todos os dias, inclusive entre os dedos.",a:true,
+  e:"A inspeção diária dos pés e do interior dos calçados faz parte do autocuidado para prevenir úlceras.",s:"Diretriz SBD — Prevenção de úlceras no pé diabético"},
+ {q:"O exame dos pés no posto de saúde só é necessário quando aparece uma ferida.",a:false,
+  e:"Mito. Todas as pessoas com diabetes devem ter os pés examinados pelo menos uma vez por ano, mesmo sem lesão.",s:"Diretriz SBD — Prevenção de úlceras no pé diabético"},
+ {q:"Crianças e adolescentes nunca têm diabetes tipo 2.",a:false,
+  e:"Mito. O DM2 pode aparecer em jovens, principalmente com obesidade e histórico familiar, e deve ser investigado.",s:"Diretriz SBD — Classificação e diagnóstico"},
+ {q:"O diabetes tipo 1 é causado por comer doce demais.",a:false,
+  e:"Mito. O tipo 1 é autoimune: o próprio organismo destrói as células que produzem insulina. Não é culpa da alimentação.",s:"Diretriz SBD — Classificação do DM"},
+ {q:"Glicemia muito alta pode causar muita sede e vontade frequente de urinar.",a:true,
+  e:"Sede excessiva, urina em excesso, cansaço e perda de peso sem explicação são sinais de hiperglicemia e merecem avaliação.",s:"Diretriz SBD — Diagnóstico de DM"},
+];
+
+const ITEMS = {
+  maca:{e:"🍎",k:"good",n:"Maçã",fiber:1}, brocolis:{e:"🥦",k:"good",n:"Brócolis",fiber:1},
+  aveia:{e:"🥣",k:"good",n:"Aveia",fiber:1}, salada:{e:"🥗",k:"good",n:"Prato equilibrado",fiber:1},
+  cenoura:{e:"🥕",k:"good",n:"Cenoura",fiber:1},
+  agua:{e:"💧",k:"water",n:"Água"}, remedio:{e:"💊",k:"med",n:"Medicação"},
+  bike:{e:"🚲",k:"ex",n:"Bicicleta"}, bola:{e:"🏀",k:"ex",n:"Esporte"},
+  refri:{e:"🥤",k:"bad",n:"Refrigerante",fast:1}, bala:{e:"🍬",k:"bad",n:"Balas",fast:1},
+  suco:{e:"🧃",k:"bad",n:"Suco de caixinha",fast:1,mild:1},
+  donut:{e:"🍩",k:"bad",n:"Doce"}, burger:{e:"🍔",k:"bad",n:"Fast food"}, batata:{e:"🍟",k:"bad",n:"Fritura"},
+  // desafio do prato
+  alface:{e:"🥬",k:"veg",n:"Vegetais"}, brocolisP:{e:"🥦",k:"veg",n:"Vegetais"}, saladaP:{e:"🥗",k:"veg",n:"Vegetais"},
+  frango:{e:"🍗",k:"prot",n:"Proteína"}, ovo:{e:"🥚",k:"prot",n:"Proteína"}, peixe:{e:"🐟",k:"prot",n:"Proteína"},
+  arroz:{e:"🍚",k:"carb",n:"Carboidrato"}, batatadoce:{e:"🍠",k:"carb",n:"Carboidrato"}, milho:{e:"🌽",k:"carb",n:"Carboidrato"},
+  // power-ups
+  ima:{e:"🧲",k:"pw",n:"Ímã de Fibras"}, tenis:{e:"👟",k:"pw",n:"Tênis do Boost"},
+  escudo:{e:"🛡️",k:"pw",n:"Escudo de Insulina"}, aguaT:{e:"🚰",k:"pw",n:"Água Turbo"},
+};
+const POOL=[["maca",9],["brocolis",7],["aveia",6],["salada",6],["cenoura",5],["agua",8],["remedio",3],["bike",4],["bola",3],
+            ["refri",8],["bala",6],["suco",3],["donut",6],["burger",6],["batata",5]];
+const POOLSUM=POOL.reduce((a,b)=>a+b[1],0);
+function pickItem(){let r=Math.random()*POOLSUM;for(const [k,w] of POOL){if((r-=w)<0)return k}return "maca"}
+const rnd=a=>a[Math.random()*a.length|0];
+
+// ================= Som =================
+let AC=null,muted=false;
+try{muted=localStorage.getItem("glycorun-mute")==="1"}catch(e){}
+function audioOn(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume()}catch(e){}}
+function tone(f,dur,type,vol,when,slide){
+  if(!AC||muted)return;const t=AC.currentTime+(when||0);
+  const o=AC.createOscillator(),g=AC.createGain();o.type=type||"square";
+  o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(30,f+slide),t+dur);
+  g.gain.setValueAtTime(vol||0.07,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+dur+0.03);
+}
+const SFX={
+  good(){tone(988,.07,"square",.06);tone(1319,.14,"square",.06,.07)},
+  water(){tone(380,.16,"sine",.12,0,520);tone(700,.1,"sine",.06,.12,300)},
+  bad(){tone(330,.11,"sawtooth",.07);tone(330,.11,"sawtooth",.07,.16)},
+  power(){[523,659,784,1047,1319].forEach((f,i)=>tone(f,.09,"square",.06,i*.06))},
+  hit(){tone(150,.3,"triangle",.22,0,-100);tone(90,.25,"square",.05,0,-40)},
+  ok(){tone(784,.1,"square",.06);tone(1175,.2,"square",.06,.1)},
+  no(){tone(320,.22,"triangle",.12,0,-160)},
+  boss(){tone(110,.45,"sawtooth",.09,0,-30);tone(92,.5,"sawtooth",.09,.4,-25)},
+  jump(){tone(480,.1,"sine",.06,0,320)},
+  win(){[659,784,988,1319].forEach((f,i)=>tone(f,.14,"square",.06,i*.11))},
+};
+function sfx(n){if(SFX[n])SFX[n]()}
+
+// ================= Canvas / projeção =================
+const C=document.getElementById("game"),ctx=C.getContext("2d");
+const TOUCH=!!(window.matchMedia&&matchMedia("(pointer:coarse)").matches);
+function buzz(ms){if(TOUCH&&navigator.vibrate)try{navigator.vibrate(ms)}catch(e){}}
+let W=0,H=0,DPR=1;
+function resize(){const r=C.getBoundingClientRect();DPR=Math.min(TOUCH?1.75:2,window.devicePixelRatio||1);W=r.width;H=r.height;C.width=Math.round(W*DPR);C.height=Math.round(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0);buildCity()}
+window.addEventListener("resize",resize);
+if(window.ResizeObserver)new ResizeObserver(()=>{const r=C.getBoundingClientRect();if(r.width&&(r.width!==W||r.height!==H))resize()}).observe(document.getElementById("stage"));
+const CAM=6,ZFAR=150,NEAR=-CAM+0.9;
+const narrow=()=>W<600;
+const laneW=()=>Math.min(W*(narrow()?0.29:0.25),210,H*0.34); // o limite por altura evita personagem gigante com o celular deitado
+// No celular, o que vem de longe aparece maior para dar tempo de reagir (só no desenho; a colisão não muda).
+const vis=(s,k)=>narrow()?1+(k||0.7)*Math.pow(1-Math.min(1,s),1.5):1;
+const unit=()=>laneW()/2.2;
+const horizon=()=>H*(H>W*1.2?0.31:0.34), base=()=>H*0.9;
+function proj(z,lx,y){const s=CAM/(Math.max(z,NEAR)+CAM);return {x:W/2+lx*laneW()*s,y:horizon()+(base()-horizon())*s-(y||0)*unit()*s,s}}
+let city=[];
+function buildCity(){city=[];let x=0,i=0;while(x<W){const bw=W/26*(0.7+((i*53)%7)/10);const bh=(0.08+0.14*((i*37)%11)/11);const wins=[];
+  for(let wy=0.12;wy<0.9;wy+=0.16)for(let wx=0.2;wx<0.85;wx+=0.3)if(((i*7+wy*31+wx*13)|0)%3)wins.push([wx,wy]);city.push({x,bw,bh,wins});x+=bw+2;i++}}
+
+// ================= Estado =================
+let S=null,state="menu",skin="corredor";
+try{skin=localStorage.getItem("glycorun-skin")||"corredor"}catch(e){}
+let qOrder=[],qIdx=0;
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+const CYCLE=90;
+
+function newGame(){
+  S={t:0,dist:0,speed:18,lane:0,px:0,y:0,vy:0,slide:0,jumps:0,
+     g:100,effects:[],cond:15,lives:3,score:0,inv:0,shield:0,mult:0,boost:0,
+     magnet:0,turbo:0,insShield:false,
+     redT:0,tirT:0,totT:0,quizT:30,qOk:0,qTot:0,exGot:0,exMiss:0,
+     objs:[],props:[],parts:[],rain:0,rainTarget:0,nextRain:35+Math.random()*25,rainEnd:0,drops:[],
+     nextRow:30,nextProp:0,lastHouse:{"-1":-99,"1":-99},propN:0,nextPower:12,
+     hypoWarned:false,hyperWarned:false,anim:0,flash:0,day:1,jumpBuf:0,
+     boss:null,bossCount:0,plate:null,nextPlate:50,lightsList:[]};
+  for(let z=2;z<ZFAR;z+=6.5){spawnProp(z)}
+}
+
+function spawnProp(z){
+  S.propN++;
+  for(const side of [-1,1]){
+    if(z-S.lastHouse[side]>8.5&&Math.random()<0.55){
+      S.props.push({type:"casa",side,z,lx:side*2.75,w:1.35+Math.random()*0.35,d:4.6+Math.random()*1.2,h:2.6+Math.random()*1.1,
+        hue:[12,200,45,140,330,25,260][Math.random()*7|0],door:Math.random()<0.5?"#6b4a33":"#2f5d7a"});
+      S.lastHouse[side]=z+5.5;
+    }else if(z>S.lastHouse[side]){
+      S.props.push({type:"arvore",side,z:z+Math.random()*2,lx:side*(2.55+Math.random()*0.5),v:Math.random(),sz:0.85+Math.random()*0.45});
+    }
+    if(S.propN%3===0)S.props.push({type:"poste",side,z:z+1,lx:side*1.95});
+    else if(Math.random()<0.5)S.props.push({type:"arbusto",side,z:z+3,lx:side*2.15,v:Math.random()});
+  }
+}
+
+function spawnRow(){
+  const z=ZFAR,lanes=[-1,0,1];
+  if(S.plate){ // desafio do prato: 3 trilhos fixos
+    S.objs.push({kind:"item",id:rnd(["alface","brocolisP","saladaP"]),lx:-1,z,bob:Math.random()*6});
+    S.objs.push({kind:"item",id:rnd(["frango","ovo","peixe"]),lx:0,z,bob:Math.random()*6});
+    S.objs.push({kind:"item",id:rnd(["arroz","batatadoce","milho"]),lx:1,z,bob:Math.random()*6});
+    return;
+  }
+  let obsLane=null;
+  if(S.t>4&&!S.boss&&Math.random()<0.42){
+    obsLane=rnd(lanes);const r=Math.random();
+    S.objs.push({kind:"obs",type:r<0.42?"sofa":r<0.75?"tela":"pilha",lx:obsLane,z});
+  }
+  let powerPlaced=false;
+  for(const l of lanes){
+    if(l===obsLane)continue;
+    if(!powerPlaced&&S.nextPower<=0){S.objs.push({kind:"item",id:rnd(["ima","tenis","escudo","aguaT"]),lx:l,z,bob:0});powerPlaced=true;S.nextPower=13+Math.random()*8;continue}
+    if(Math.random()<0.42)S.objs.push({kind:"item",id:pickItem(),lx:l,z,bob:Math.random()*6});
+  }
+}
+function addG(total,dur){S.effects.push({rate:total/dur,left:dur})}
+
+// ================= Input =================
+function act(a){
+  if(state!=="run")return;
+  if(a==="L")S.lane=Math.max(-1,S.lane-1);
+  if(a==="R")S.lane=Math.min(1,S.lane+1);
+  if(a==="U"){
+    S.slide=0;
+    const maxJ=S.turbo>0?2:1;
+    if(S.y<=0.01)S.jumps=0;
+    if(S.jumps<maxJ){S.vy=S.turbo>0?(S.jumps?10.5:9.2):8.2;S.jumps++;S.jumpBuf=0;sfx("jump")}
+    else S.jumpBuf=0.16; // toque um pouco antes de pousar ainda vale
+  }
+  if(a==="D"){if(S.y>0.01)S.vy=-14;S.slide=0.65}
+}
+window.addEventListener("keydown",e=>{
+  if(e.target&&e.target.tagName==="INPUT")return;
+  const k=e.key;
+  if(state==="quiz"){if(!quizAnswered&&(k==="m"||k==="M"))answer(false);else if(!quizAnswered&&(k==="v"||k==="V"))answer(true);return}
+  if(k==="ArrowLeft"||k==="a"||k==="A"){act("L");e.preventDefault()}
+  else if(k==="ArrowRight"||k==="d"||k==="D"){act("R");e.preventDefault()}
+  else if(k==="ArrowUp"||k==="w"||k==="W"||k===" "){act("U");e.preventDefault()}
+  else if(k==="ArrowDown"||k==="s"||k==="S"){act("D");e.preventDefault()}
+  else if(k==="p"||k==="P"||k==="Escape"){if(state==="run")pause();else if(state==="pause")resume()}
+});
+// Deslize: responde durante o movimento, sem esperar tirar o dedo. Um deslize longo vale uma ação por direção.
+let tStart=null;
+C.addEventListener("pointerdown",e=>{tStart={x:e.clientX,y:e.clientY,dir:null};try{C.setPointerCapture(e.pointerId)}catch(er){}});
+C.addEventListener("pointermove",e=>{if(!tStart)return;const dx=e.clientX-tStart.x,dy=e.clientY-tStart.y;
+  if(Math.max(Math.abs(dx),Math.abs(dy))<18)return;
+  const dir=Math.abs(dx)>Math.abs(dy)?(dx<0?"L":"R"):(dy<0?"U":"D");
+  tStart.x=e.clientX;tStart.y=e.clientY;
+  if(dir!==tStart.dir){tStart.dir=dir;act(dir)}});
+for(const ev of ["pointerup","pointercancel"])C.addEventListener(ev,()=>{tStart=null});
+document.getElementById("controls").addEventListener("contextmenu",e=>e.preventDefault());
+for(const [id,a] of [["cL","L"],["cR","R"],["cU","U"],["cD","D"]])document.getElementById(id).addEventListener("pointerdown",e=>{e.preventDefault();act(a)});
+
+// ================= UI =================
+const $=id=>document.getElementById(id);
+let toastTimer=0;
+function toast(msg,sec){const el=$("toast");el.textContent=msg;el.classList.add("on");toastTimer=sec||2.6}
+function show(id,on){$(id).hidden=!on}
+const OVERLAYS=["menu","over","pause","quiz","sources","boardPanel"];
+function start(){audioOn();newGame();state="run";OVERLAYS.forEach(i=>show(i,false));show("hud",true);hudAcc=1;toast("Mantenha a glicemia no verde (70–180 mg/dL)!",3);last=performance.now()}
+function pause(){state="pause";show("pause",true)}
+function resume(){state="run";show("pause",false);S.inv=Math.max(S.inv,1);last=performance.now()}
+function toMenu(){OVERLAYS.forEach(i=>show(i,false));show("menu",true);show("hud",false);state="menu";setFilters(null)}
+$("play").onclick=start;$("again").onclick=start;$("toMenu").onclick=toMenu;$("quit").onclick=toMenu;$("resume").onclick=resume;
+$("cP").onclick=()=>{if(state==="run")pause();else if(state==="pause")resume()};
+function setMute(){const al=muted?"Som desligado":"Som ligado";$("cM").textContent=muted?"🔇":"🔊";$("cM").setAttribute("aria-label",al);$("mMute").textContent=(muted?"🔇":"🔊")+" Som";$("mMute").setAttribute("aria-label",al)}
+$("cM").onclick=$("mMute").onclick=()=>{muted=!muted;audioOn();try{localStorage.setItem("glycorun-mute",muted?"1":"0")}catch(e){}setMute()};setMute();
+if(TOUCH)$("keys").textContent="Deslize na pista ou use os botões: ◀ ▶ troca de faixa, ▲ pula, ▼ abaixa.";
+$("srcBtn").onclick=()=>{show("menu",false);show("sources",true)};
+$("srcBack").onclick=()=>{show("sources",false);show("menu",true)};
+$("boardBtn").onclick=()=>{renderBoard($("board2"));show("menu",false);show("boardPanel",true)};
+$("boardBack").onclick=()=>{show("boardPanel",false);show("menu",true);resetClear()};
+let clearArmed=false;
+function resetClear(){clearArmed=false;$("clearBoard").textContent="Zerar placar"}
+$("clearBoard").onclick=()=>{if(!clearArmed){clearArmed=true;$("clearBoard").textContent="Toque de novo para confirmar";return}
+  saveBoard([]);renderBoard($("board2"));resetClear()};
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&state==="run")pause()});
+function paintSkins(){document.querySelectorAll(".skin").forEach(b=>b.setAttribute("aria-pressed",b.dataset.skin===skin?"true":"false"))}
+document.querySelectorAll(".skin").forEach(b=>b.onclick=()=>{skin=b.dataset.skin;try{localStorage.setItem("glycorun-skin",skin)}catch(e){}paintSkins()});paintSkins();
+
+// ---------- Placar ----------
+function loadBoard(){try{return JSON.parse(localStorage.getItem("glycorun-board")||"[]")}catch(e){return[]}}
+function saveBoard(b){try{localStorage.setItem("glycorun-board",JSON.stringify(b))}catch(e){}}
+let lastEntry=null;
+function renderBoard(el){
+  const b=loadBoard();el.innerHTML="";
+  if(!b.length){const p=document.createElement("p");p.className="empty";p.textContent="Ninguém no placar ainda. Jogue e salve seu nome!";el.appendChild(p);return}
+  b.slice(0,8).forEach(r=>{const li=document.createElement("li");if(lastEntry&&r.id===lastEntry)li.className="me";
+    const n=document.createElement("span");n.className="nm";n.textContent=r.n;
+    const t=document.createElement("span");t.className="tir";t.textContent=r.tir+"% no alvo";
+    const p=document.createElement("span");p.className="pts";p.textContent=r.s;
+    li.append(n,t,p);el.appendChild(li)});
+}
+$("saveForm").addEventListener("submit",e=>{
+  e.preventDefault();if(!S||S.saved)return;
+  const n=($("pname").value||"").trim().slice(0,16)||"Corredor(a)";
+  try{localStorage.setItem("glycorun-name",n)}catch(er){}
+  const b=loadBoard();lastEntry=Date.now()+"-"+Math.random();
+  b.push({id:lastEntry,n,s:Math.round(S.score),tir:S.totT?Math.round(100*S.tirT/S.totT):0});
+  b.sort((a,c)=>c.s-a.s);saveBoard(b.slice(0,20));S.saved=true;
+  $("saveBtn").textContent="Salvo!";$("saveBtn").disabled=true;renderBoard($("board1"));
+});
+
+// ---------- Quiz ----------
+let quizAnswered=false,curQ=null;
+function openQuiz(){
+  state="quiz";quizAnswered=false;$("qt").textContent="0s";
+  if(!qOrder.length||qIdx>=qOrder.length){qOrder=shuffle(QUESTIONS.map((_,i)=>i));qIdx=0}
+  curQ=QUESTIONS[qOrder[qIdx++]];
+  $("qq").textContent=curQ.q;show("qbtns",true);show("qfb",false);show("qcont",false);show("quiz",true);
+  setTimeout(()=>$("bv").focus(),50);
+}
+function answer(v){
+  if(quizAnswered)return;quizAnswered=true;S.qTot++;
+  const ok=v===curQ.a,fb=$("qfb");fb.innerHTML="";
+  const st=document.createElement("strong");st.textContent=(ok?"Acertou! ":"Quase! ")+(curQ.a?"É verdade.":"É mito.");st.style.color=ok?"var(--ok)":"var(--bad)";
+  const p=document.createElement("div");p.textContent=curQ.e;
+  const s=document.createElement("span");s.className="src";s.textContent="Fonte: "+curQ.s;
+  fb.append(st,p,s);
+  if(ok){S.qOk++;S.shield=6;S.mult=10;S.score+=150;sfx("ok")}else{addG((Math.random()<0.5?-1:1)*18,1.5);sfx("no")}
+  show("qbtns",false);show("qfb",true);show("qcont",true);setTimeout(()=>$("cont").focus(),50);
+}
+$("bm").onclick=()=>answer(false);$("bv").onclick=()=>answer(true);
+$("cont").onclick=()=>{show("quiz",false);state="run";S.quizT=30;S.inv=Math.max(S.inv,1.2);last=performance.now();
+  toast(S.mult>0?"Escudo contra obstáculos e pontos ×2 extras!":"A glicemia oscilou. Na próxima você acerta!",2.4)};
+
+// ================= Lógica =================
+function zoneOf(g){return g<54?"r":g<70?"y":g<=180?"g":g<=250?"y":"r"}
+function burst(x,y,col,n){for(let i=0;i<(n||10);i++)S.parts.push({x,y,vx:(Math.random()-0.5)*220,vy:-Math.random()*220-40,life:0.6,max:0.6,col,r:3+Math.random()*3,grav:1})}
+function collect(o){
+  const it=ITEMS[o.id],g=S.g,boost=S.boost>0||S.turbo>0?0.5:1;
+  const P=proj(0,S.px,1.2);
+  if(it.k==="good"){
+    addG(7*boost,3);S.cond=Math.min(100,S.cond+3);S.score+=50;sfx("good");burst(P.x,P.y,"#5ad18a");
+    if(g<70){addG(10,2);toast(it.n+": ajuda um pouco, mas carboidrato rápido corrige mais depressa.",2.4)}
+    else toast(it.n+": fibra e nutrientes, sobe devagar.",1.5);
+  }
+  else if(it.k==="water"){S.score+=30;sfx("water");burst(P.x,P.y,"#7fd0ff");toast("Água: hidratação em dia.",1.4)}
+  else if(it.k==="ex"){addG(-22,4);S.boost=7;S.exGot++;S.cond=Math.min(100,S.cond+9);S.score+=80;sfx("power");burst(P.x,P.y,"#6fb2ff",14);toast("Exercício! A glicose baixa e a insulina age melhor.",2)}
+  else if(it.k==="med"){addG(-28,4);S.score+=40;sfx("good");
+    toast(g<100?"Cuidado: medicação com glicemia já baixa pode causar hipoglicemia.":"Adesão ao tratamento: a medicação ajuda a baixar a glicose.",2.4)}
+  else if(it.k==="bad"){
+    if(g<70&&it.fast){addG(38,2);S.score+=60;sfx("good");burst(P.x,P.y,"#5ad18a");toast("Correção certa! 15 g de carboidrato rápido (regra dos 15).",2.6)}
+    else if(S.insShield){S.insShield=false;addG(9*boost,2);sfx("power");burst(P.x,P.y,"#c9a8ff",14);
+      toast("Escudo de Insulina segurou o pico! A insulina ajuda a glicose a entrar nas células.",2.6)}
+    else{addG((it.mild?28:42)*boost,1.4);S.cond=Math.max(0,S.cond-6);S.score=Math.max(0,S.score-20);sfx("bad");buzz(35);S.flash=0.15;burst(P.x,P.y,"#ff8b6b");
+      toast("Bip bip! "+it.n+": pico de açúcar!"+(boost<1?" (o exercício reduziu o pico)":""),1.6)}
+  }
+  else if(it.k==="veg"||it.k==="prot"||it.k==="carb"){
+    if(S.plate)S.plate[it.k]++;S.score+=40;sfx("good");burst(P.x,P.y,it.k==="veg"?"#5ad18a":it.k==="prot"?"#ffb36b":"#ffd166");
+    addG(it.k==="carb"?8:it.k==="veg"?3:1,3);S.cond=Math.min(100,S.cond+2);
+  }
+  else if(it.k==="pw"){
+    sfx("power");burst(P.x,P.y,"#ffd23f",18);S.score+=100;
+    if(o.id==="ima"){S.magnet=10;toast("Ímã de Fibras! As fibras puxam os bons nutrientes e seguram a absorção do açúcar.",2.8)}
+    if(o.id==="tenis"){S.turbo=10;S.boost=Math.max(S.boost,10);toast("Tênis do Boost! Pulo duplo e o músculo capta mais glicose.",2.8)}
+    if(o.id==="escudo"){S.insShield=true;toast("Escudo de Insulina pronto para o próximo ultraprocessado.",2.6)}
+    if(o.id==="aguaT"){
+      if(g>180){addG(-(g-180)*0.45-12,3);toast("Água Turbo: hidratar ajuda o rim a eliminar parte do excesso. Quem baixa de verdade são insulina e exercício.",3.4)}
+      else toast("Água Turbo: hidratação extra! Na glicemia alta ela ajuda mais.",2.2);
+    }
+  }
+}
+function hit(o){
+  if(S.inv>0)return;
+  if(S.shield>0){S.shield=0;S.inv=1;sfx("power");toast("O escudo do quiz te protegeu!",1.6);return}
+  S.lives--;S.inv=1.6;S.flash=0.4;S.cond=Math.max(0,S.cond-4);sfx("hit");buzz(120);
+  toast({sofa:"Sedentarismo! Pule o sofá (↑).",tela:"Tempo de tela demais! Abaixe (↓) para passar.",pilha:"Pilha de telas! Troque de faixa ou use o pulo duplo do Tênis."}[o.type],2.2);
+  if(S.lives<=0)gameOver("Os obstáculos do sedentarismo te pararam.");
+}
+function gameOver(msg){
+  state="over";setFilters(null);
+  const tir=S.totT>0?Math.round(100*S.tirT/S.totT):0;
+  $("overMsg").textContent=msg+" Quanto mais tempo na faixa de 70 a 180 mg/dL, melhor o controle.";
+  $("sScore").textContent=Math.round(S.score);$("sTir").textContent=tir+"%";
+  $("sDist").textContent=Math.round(S.dist/3)+" m · "+S.day+(S.day>1?" dias":" dia");
+  $("sQuiz").textContent=S.qOk+"/"+S.qTot;
+  const B=[
+    ["🏅","Mestre da Euglicemia","Mais de 80% do tempo na faixa verde.",tir>80],
+    ["🏃","Atleta de Elite","Pegou todos os itens de atividade física (mín. 3).",S.exGot>=3&&S.exMiss===0],
+    ["🔎","Detetive de Mitos","Acertou 100% do quiz (mín. 2 perguntas).",S.qTot>=2&&S.qOk===S.qTot],
+  ];
+  const el=$("badges");el.innerHTML="";
+  for(const [ic,t,d,got] of B){const div=document.createElement("div");div.className="badge "+(got?"got":"lock");
+    const i=document.createElement("span");i.className="ic";i.textContent=ic;const tx=document.createElement("div");
+    const b=document.createElement("b");b.textContent=t;tx.append(b,document.createTextNode(got?"Conquistada! "+d:d));div.append(i,tx);el.appendChild(div)}
+  try{$("pname").value=localStorage.getItem("glycorun-name")||""}catch(e){}
+  $("saveBtn").textContent="Salvar no placar";$("saveBtn").disabled=false;lastEntry=null;renderBoard($("board1"));
+  show("over",true);sfx(tir>80?"win":"no");
+}
+
+function startBoss(){S.boss={t:0,dur:10,lx:0,throwT:1.2,hits:0,type:S.bossCount%2?"burger":"lata"};S.bossCount++;sfx("boss");
+  toast("Chefão Ultraprocessado! Desvie dos doces que ele lança!",2.6)}
+function endPlate(){
+  const p=S.plate;S.plate=null;const n=p.veg+p.prot+p.carb;
+  if(n<4){toast("Desafio do Prato: pegue mais itens da próxima vez! Metade vegetais, ¼ proteína, ¼ carboidrato.",3.4);return}
+  const v=p.veg/n,pr=p.prot/n,c=p.carb/n;
+  if(v>=0.4&&pr>=0.15&&pr<=0.4&&c>=0.15&&c<=0.4){S.score+=400;S.cond=Math.min(100,S.cond+8);sfx("win");toast("Prato equilibrado! +400. Metade vegetais, ¼ proteína, ¼ carboidrato.",3.2)}
+  else{sfx("no");toast(v<0.4?"Faltou vegetal: metade do prato deve ser salada e legumes.":c>0.4?"Carboidrato demais: ele deve ocupar só ¼ do prato.":"Faltou equilibrar: ¼ proteína e ¼ carboidrato.",3.2)}
+}
+
+function update(dt){
+  S.t+=dt;S.anim+=dt;
+  const L=lightAt(S.t);
+  const nd=Math.floor(S.t/CYCLE)+1;if(nd!==S.day){S.day=nd;toast("Dia "+nd+" começou! Bom dia, corredor(a).",2.4)}
+  // chuva
+  if(S.t>S.nextRain&&S.rainTarget===0){S.rainTarget=1;S.rainEnd=S.t+14+Math.random()*6;toast("Começou a chover! Pista molhada.",2)}
+  if(S.rainTarget===1&&S.t>S.rainEnd){S.rainTarget=0;S.nextRain=S.t+40+Math.random()*30}
+  S.rain+=(S.rainTarget-S.rain)*Math.min(1,dt*0.8);
+  // velocidade (hipoglicemia deixa mais lento, hiperglicemia cansa)
+  S.speed=18+(TOUCH?Math.min(20,S.t*0.13):Math.min(28,S.t*0.17)); // no toque a aceleração é mais suave
+  const z0=zoneOf(S.g);
+  const slow=S.g<70?0.8:S.g>180?0.9:1;
+  const sp=S.speed*slow;
+  S.dist+=sp*dt;
+  // jogador
+  S.px+=(S.lane-S.px)*Math.min(1,dt*(S.g<70?8:14));
+  S.vy-=24*dt;S.y=Math.max(0,S.y+S.vy*dt);if(S.y===0&&S.vy<0){S.vy=0;S.jumps=0}
+  if(S.jumpBuf>0){S.jumpBuf-=dt;if(S.y<=0.01&&S.jumpBuf>0)act("U")}
+  S.slide=Math.max(0,S.slide-dt);
+  for(const k of ["inv","shield","mult","boost","flash","magnet","turbo"])S[k]=Math.max(0,S[k]-dt);
+  // glicemia
+  let dg=-(1.1+(S.boost>0?1.2:0))*dt;
+  if(S.turbo>0&&S.g>140)dg-=3*dt; // tênis: normaliza 2x mais rápido
+  S.effects=S.effects.filter(f=>{const d=Math.min(dt,f.left);dg+=f.rate*d;f.left-=d;return f.left>0});
+  S.g=Math.max(30,Math.min(320,S.g+dg));
+  const z=zoneOf(S.g);
+  S.totT+=dt;if(z==="g")S.tirT+=dt;
+  if(z==="r"){S.redT+=dt;if(S.redT>4){
+      S.lives--;S.redT=0;S.effects=[];const low=S.g<70;S.g=low?95:150;S.inv=1.2;sfx("hit");buzz(120);
+      toast(low?"Hipoglicemia grave: precisou de ajuda. Corrija cedo com 15 g de carboidrato!":"Hiperglicemia grave: procure atendimento. Evite os picos!",3.2);
+      if(S.lives<=0){gameOver(low?"A glicemia ficou baixa demais por muito tempo.":"A glicemia ficou alta demais por muito tempo.");return}
+  }}else S.redT=Math.max(0,S.redT-dt*2);
+  if(S.g<70&&!S.hypoWarned){S.hypoWarned=true;toast("Glicemia baixa! Tremor e visão sem cor: pegue refrigerante comum, suco ou bala.",3)}
+  if(S.g>=80)S.hypoWarned=false;
+  if(S.g>180&&!S.hyperWarned){S.hyperWarned=true;toast("Glicemia alta! Visão embaçada: busque exercício e evite ultraprocessados.",2.8)}
+  if(S.g<170)S.hyperWarned=false;
+  // pontos: verde = ×2
+  S.score+=dt*sp*(z==="g"?2:z==="y"?0.5:0)*(S.mult>0?2:1)*0.3;
+  // eventos: chefão a cada 500 m, prato periódico
+  const meters=S.dist/3;
+  if(!S.boss&&!S.plate&&Math.floor(meters/500)>S.bossCount)startBoss();
+  if(S.boss){const B=S.boss;B.t+=dt;B.lx=Math.sin(B.t*1.7)*1.05;
+    if(B.t>1.5&&B.t<B.dur-1.5){B.throwT-=dt;if(B.throwT<=0){B.throwT=Math.max(0.42,0.75-S.speed*0.006);
+      S.objs.push({kind:"item",id:rnd(["refri","bala","donut","burger"]),lx:Math.max(-1,Math.min(1,Math.round(B.lx))),z:29,bob:0,thrown:true,y0:4,vy0:0})}}
+    if(B.t>=B.dur){if(B.hits===0){S.score+=500;sfx("win");toast("Você venceu o Chefão Ultraprocessado! +500",2.6)}else toast("O chefão foi embora. Na próxima, desvie de tudo!",2.2);S.boss=null}}
+  S.nextPlate-=dt;
+  if(!S.plate&&!S.boss&&S.nextPlate<=0){S.plate={t:0,veg:0,prot:0,carb:0};S.nextPlate=70;toast("Desafio do Prato! Monte ½ vegetais, ¼ proteína e ¼ carboidrato nas faixas marcadas.",3.6)}
+  if(S.plate){S.plate.t+=dt;if(S.plate.t>6.5)endPlate()}
+  // objetos
+  const move=sp*dt;
+  for(const o of S.objs){o.z-=move;
+    if(o.thrown&&o.y0>0){o.y0=Math.max(0,o.y0-dt*5)}
+    if(S.magnet>0&&o.kind==="item"&&!o.done&&ITEMS[o.id].fiber&&o.z<32&&o.z>-0.5){o.lx+=(S.px-o.lx)*Math.min(1,dt*7);o.mag=1}
+  }
+  for(const p of S.props)p.z-=move;
+  S.nextRow-=move;if(S.nextRow<=0){spawnRow();S.nextRow=S.plate?Math.max(7,S.speed*0.42):Math.max(9,S.speed*0.6)}
+  S.nextProp-=move;if(S.nextProp<=0){spawnProp(ZFAR);S.nextProp=6.5}
+  S.nextPower-=dt;
+  for(const o of S.objs){
+    if(o.done)continue;
+    if(o.kind==="item"&&ITEMS[o.id].k==="ex"&&o.z<-0.6&&!o.counted){o.counted=1;S.exMiss++}
+    if(Math.abs(o.z)>1.1||Math.abs(o.lx-S.px)>0.5)continue;
+    if(o.kind==="item"){o.done=true;if(o.thrown&&ITEMS[o.id].k==="bad"&&S.boss)S.boss.hits++;collect(o)}
+    else{const clear=(o.type==="sofa"&&S.y>0.7)||(o.type==="tela"&&S.slide>0)||(o.type==="pilha"&&S.y>2.3);if(!clear){o.done=true;hit(o)}}
+  }
+  S.objs=S.objs.filter(o=>o.z>NEAR&&!(o.done&&o.kind==="item"));
+  S.props=S.props.filter(p=>p.z+(p.d||0)>NEAR);
+  // partículas: rastro brilhante na zona verde
+  if(z==="g"&&S.y<0.1&&S.slide<=0&&Math.random()<dt*40){const F=proj(0,S.px);
+    S.parts.push({x:F.x+(Math.random()-0.5)*unit()*0.6,y:F.y-2,vx:(Math.random()-0.5)*30,vy:30+Math.random()*40,life:0.5,max:0.5,col:Math.random()<0.5?"#9dffb9":"#fff6a8",r:2+Math.random()*3,grav:0,glow:1})}
+  S.parts=S.parts.filter(p=>{p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.grav)p.vy+=500*dt;return p.life>0});
+  // quiz (espera o desafio do prato terminar)
+  S.quizT-=dt;if(S.quizT<=0&&!S.plate&&state==="run")openQuiz();
+}
+
+// ================= Luz do dia =================
+function smooth(a,b,x){const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)}
+function lightAt(t){const c=(t%CYCLE)/CYCLE;const n=smooth(0.55,0.66,c)*(1-smooth(0.88,0.98,c));
+  const d=Math.max(Math.exp(-(((c-0.57)/0.045)**2)),Math.exp(-(((c-0.93)/0.035)**2)));return {n,d,c}}
+const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+const rgb=(a,al)=>al==null?`rgb(${a.map(Math.round)})`:`rgba(${a.map(Math.round)},${al})`;
+const SKY={dayT:[79,168,230],dayB:[205,238,252],duskT:[70,80,160],duskB:[250,170,110],nightT:[10,18,46],nightB:[36,52,92]};
+
+// ================= Desenho =================
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h)}
+function poly(pts,col){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x,pts[i].y);ctx.closePath();ctx.fill()}
+let LIGHTS=[];
+
+function drawSky(L){
+  const h=horizon();
+  const top=mix(mix(SKY.dayT,SKY.duskT,L.d),SKY.nightT,L.n),bot=mix(mix(SKY.dayB,SKY.duskB,L.d),SKY.nightB,L.n);
+  const rainDim=S?S.rain*0.35:0;
+  const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,rgb(mix(top,[110,120,135],rainDim)));g.addColorStop(1,rgb(mix(bot,[160,170,180],rainDim)));
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,h+2);
+  // estrelas
+  if(L.n>0.05){for(let i=0;i<70;i++){const x=(i*97.3)%W,y=((i*53.7)%(h*0.9));const tw=0.5+0.5*Math.sin((S?S.anim:0)*2+i);
+    ctx.fillStyle=`rgba(255,255,240,${L.n*(0.35+0.5*tw)*(1-rainDim*2)})`;ctx.fillRect(x,y,1.6,1.6)}}
+  // sol e lua
+  const c=L.c;
+  if(c<0.66){const t=c/0.66;const x=W*(0.1+0.8*t),y=h*(0.95-0.75*Math.sin(Math.PI*t));
+    const R=Math.min(W,H)*0.045;const gl=ctx.createRadialGradient(x,y,R*0.5,x,y,R*3);gl.addColorStop(0,`rgba(255,240,170,${0.5*(1-rainDim)})`);gl.addColorStop(1,"rgba(255,240,170,0)");
+    ctx.fillStyle=gl;ctx.fillRect(x-R*3,y-R*3,R*6,R*6);ctx.fillStyle=L.d>0.3?"#ffcf7a":"#fff3b0";ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill()}
+  if(c>0.58){const t=(c-0.58)/0.42;const x=W*(0.1+0.8*t),y=h*(0.95-0.7*Math.sin(Math.PI*t));const R=Math.min(W,H)*0.035;
+    ctx.fillStyle=`rgba(240,244,255,${Math.min(1,L.n*1.4)})`;ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fill();
+    ctx.fillStyle=rgb(top,Math.min(1,L.n*1.4));ctx.beginPath();ctx.arc(x+R*0.45,y-R*0.25,R*0.85,0,7);ctx.fill()}
+  // nuvens
+  const d=S?S.dist:0,an=S?S.anim:0;
+  const cc=mix(mix([255,255,255],[255,210,180],L.d),[80,92,120],L.n);
+  ctx.fillStyle=rgb(mix(cc,[150,155,165],rainDim*1.5),0.85);
+  const nC=5+Math.round((S?S.rain:0)*5);
+  for(let i=0;i<nC;i++){const span=W*1.5;const x=((i*W*0.29-d*0.4-an*9)%span+span)%span-W*0.25;const y=h*(0.12+0.13*(i%3));const sc=W/900+0.45;
+    for(const [dx,dy,r] of [[0,0,22],[24,-9,19],[46,0,21],[22,6,19]]){ctx.beginPath();ctx.arc(x+dx*sc,y+dy*sc,r*sc,0,7);ctx.fill()}}
+  // montanhas em 2 camadas
+  const m1=mix(mix([140,182,201],[170,130,150],L.d),[38,52,82],L.n),m2=mix(mix([116,160,150],[150,110,120],L.d),[30,44,66],L.n);
+  ctx.fillStyle=rgb(m1);ctx.beginPath();ctx.moveTo(0,h);for(let x=0;x<=W+10;x+=W/10)ctx.lineTo(x,h-h*(0.2+0.13*Math.abs(Math.sin(x*0.008+1.3))));ctx.lineTo(W,h);ctx.fill();
+  ctx.fillStyle=rgb(m2);ctx.beginPath();ctx.moveTo(0,h);for(let x=0;x<=W+10;x+=W/14)ctx.lineTo(x,h-h*(0.1+0.08*Math.abs(Math.sin(x*0.013+0.4))));ctx.lineTo(W,h);ctx.fill();
+  // cidade ao fundo
+  const cb=mix(mix([150,180,200],[160,140,160],L.d),[24,34,58],L.n);
+  ctx.fillStyle=rgb(cb);
+  for(const b of city){ctx.fillRect(b.x,h-b.bh*h,b.bw,b.bh*h)}
+}
+function drawCityLights(L){
+  if(L.n<0.1)return;const h=horizon();
+  ctx.fillStyle=`rgba(255,214,120,${L.n*0.85})`;
+  for(const b of city){for(const [wx,wy] of b.wins){ctx.fillRect(b.x+wx*b.bw,h-b.bh*h+wy*b.bh*h,Math.max(1.5,b.bw*0.12),2)}}
+}
+function drawGround(L){
+  const d=S?S.dist:0,phase=d%10,wet=S?S.rain:0;
+  const dim=c=>rgb(mix(c,[c[0]*0.75,c[1]*0.75,c[2]*0.8],wet));
+  ctx.fillStyle=dim([124,195,90]);ctx.fillRect(0,horizon(),W,H-horizon());
+  for(let zb=ZFAR+10-phase;zb>NEAR;zb-=5){
+    const za=Math.max(NEAR,zb-5);
+    const odd=Math.round((zb+phase)/5)%2===0;
+    const band=(l,r,col)=>poly([proj(za,l),proj(za,r),proj(zb,r),proj(zb,l)],col);
+    band(-14,14,dim(odd?[118,190,86]:[130,201,98]));
+    band(-2.35,2.35,dim(odd?[214,207,194]:[224,218,206]));
+    band(-1.62,1.62,dim(odd?[86,94,108]:[93,101,116]));
+    if(S&&S.plate){band(-1.6,-0.5,"rgba(90,209,138,.28)");band(-0.5,0.5,"rgba(255,179,107,.28)");band(0.5,1.6,"rgba(255,209,102,.28)")}
+  }
+  // juntas da calçada
+  ctx.strokeStyle=dim([190,182,168]);ctx.lineWidth=1;
+  for(let z=ZFAR-(d%3);z>NEAR;z-=3){for(const s of[-1,1]){const a=proj(z,s*1.7),b=proj(z,s*2.35);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}}
+  // meio-fio
+  for(const side of[-1,1]){poly([proj(NEAR,side*1.62),proj(NEAR,side*1.72),proj(ZFAR,side*1.72),proj(ZFAR,side*1.62)],"#eeeeea")}
+  // faixas
+  ctx.fillStyle=wet>0.3?"#e8e4d6":"#f6f1dd";
+  for(const lx of[-0.5,0.5])for(let z=ZFAR-(d%8);z>NEAR+0.2;z-=8){const a=proj(Math.max(NEAR,z-3.5),lx),b=proj(z,lx);
+    const w1=laneW()*0.045*a.s,w2=laneW()*0.045*b.s;ctx.beginPath();ctx.moveTo(a.x-w1,a.y);ctx.lineTo(a.x+w1,a.y);ctx.lineTo(b.x+w2,b.y);ctx.lineTo(b.x-w2,b.y);ctx.fill()}
+  // reflexos da chuva
+  if(wet>0.2){ctx.fillStyle=`rgba(200,220,255,${wet*0.18})`;for(let i=0;i<14;i++){const z=((i*13.7-d*0.5)%120+120)%120+2;const p=proj(z,((i*0.37)%2.4)-1.2);
+    ctx.beginPath();ctx.ellipse(p.x,p.y,laneW()*0.35*p.s,laneW()*0.06*p.s,0,0,7);ctx.fill()}}
+}
+
+function drawHouse(p,L){
+  const s=p.side,inner=p.lx,outer=p.lx+s*p.w*2,mid=(inner+outer)/2,z0=Math.max(NEAR+0.1,p.z),z1=p.z+p.d;if(z1<NEAR+0.5)return;
+  const P=(lx,z,y)=>proj(z,lx,y);const h=p.h,rh=1.4;
+  const wall=`hsl(${p.hue} 52% 80%)`,wallS=`hsl(${p.hue} 40% 68%)`,roof=`hsl(${p.hue} 45% 40%)`,roofS=`hsl(${p.hue} 45% 32%)`;
+  poly([P(inner,z0,0),P(inner,z1,0),P(inner,z1,h),P(inner,z0,h)],wallS);           // lateral voltada à rua
+  // janelas na lateral
+  for(const wz of[1.0,2.9]){if(p.z+wz+1.1>p.z+p.d)continue;const za=p.z+wz,zb=za+1.1;if(za<NEAR+0.2)continue;
+    const lit=L.n>0.35;poly([P(inner,za,1.1),P(inner,zb,1.1),P(inner,zb,2.0),P(inner,za,2.0)],lit?"#ffd77a":"#bfe2f5");
+    if(lit){const c=P(inner,(za+zb)/2,1.55);LIGHTS.push({x:c.x,y:c.y,r:unit()*c.s*1.6,c:"255,200,110",a:0.5*L.n})}}
+  poly([P(inner,z0,h),P(mid,z0,h+rh),P(mid,z1,h+rh),P(inner,z1,h)],roofS);          // telhado
+  if(p.z<NEAR+0.3)return;
+  poly([P(inner,z0,0),P(outer,z0,0),P(outer,z0,h),P(inner,z0,h)],wall);            // fachada
+  poly([P(inner-s*0.06,z0,h),P(outer+s*0.06,z0,h),P(mid,z0,h+rh)],roof);
+  const door=[P(mid-0.17,z0,0),P(mid+0.17,z0,0),P(mid+0.17,z0,1.9),P(mid-0.17,z0,1.9)];poly(door,p.door);
+  const lit=L.n>0.35;
+  for(const off of[-0.55,0.55]){const wx=mid+off*p.w*0.7;poly([P(wx-0.2,z0,1.2),P(wx+0.2,z0,1.2),P(wx+0.2,z0,2.0),P(wx-0.2,z0,2.0)],lit?"#ffd77a":"#bfe2f5");
+    if(lit){const c=P(wx,z0,1.6);LIGHTS.push({x:c.x,y:c.y,r:unit()*c.s*1.5,c:"255,200,110",a:0.55*L.n})}}
+  const step=P(mid,z0,0);ctx.fillStyle="#00000018";ctx.fillRect(step.x-unit()*step.s*0.5,step.y-1,unit()*step.s,unit()*step.s*0.12);
+}
+function drawProp(p,L){
+  if(p.type==="casa")return drawHouse(p,L);
+  const P=proj(p.z,p.lx),u=unit()*P.s;if(P.s<0.03)return;
+  ctx.save();ctx.translate(P.x,P.y);
+  if(p.type==="arvore"){
+    const k=p.sz;ctx.fillStyle="#00000022";ctx.beginPath();ctx.ellipse(0,0,u*1.1*k,u*0.28*k,0,0,7);ctx.fill();
+    ctx.fillStyle="#6e4a2e";rr(-u*0.13*k,-u*1.6*k,u*0.26*k,u*1.6*k,u*0.05);ctx.fill();
+    const base=p.v<0.5?[52,140,66]:[40,126,82];const dark=rgb(base.map(v=>v*0.78)),mid2=rgb(base),light=rgb(base.map(v=>Math.min(255,v*1.25)));
+    ctx.fillStyle=dark;ctx.beginPath();ctx.arc(0,-u*2.0*k,u*1.1*k,0,7);ctx.arc(-u*0.75*k,-u*1.8*k,u*0.7*k,0,7);ctx.arc(u*0.75*k,-u*1.8*k,u*0.7*k,0,7);ctx.fill();
+    ctx.fillStyle=mid2;ctx.beginPath();ctx.arc(-u*0.3*k,-u*2.4*k,u*0.8*k,0,7);ctx.arc(u*0.45*k,-u*2.3*k,u*0.7*k,0,7);ctx.fill();
+    ctx.fillStyle=light;ctx.beginPath();ctx.arc(-u*0.5*k,-u*2.7*k,u*0.4*k,0,7);ctx.fill();
+    if(p.v>0.7){ctx.fillStyle="#e2483d";for(const [a,b] of[[-0.4,-2.1],[0.5,-2.5],[0.1,-1.8]]){ctx.beginPath();ctx.arc(u*a*k,u*b*k,u*0.09*k,0,7);ctx.fill()}}
+  }else if(p.type==="arbusto"){
+    ctx.fillStyle=p.v<0.5?"#3f9a49":"#4aa95a";ctx.beginPath();ctx.arc(-u*0.25,-u*0.25,u*0.32,0,7);ctx.arc(u*0.2,-u*0.3,u*0.36,0,7);ctx.arc(0,-u*0.45,u*0.3,0,7);ctx.fill();
+    if(p.v>0.6){ctx.fillStyle="#ffd1e8";ctx.beginPath();ctx.arc(u*0.1,-u*0.55,u*0.07,0,7);ctx.arc(-u*0.3,-u*0.35,u*0.06,0,7);ctx.fill()}
+  }else if(p.type==="poste"){
+    ctx.fillStyle="#4a5462";ctx.fillRect(-u*0.06,-u*3.3,u*0.12,u*3.3);
+    const arm=-p.side;ctx.fillRect(Math.min(0,arm*u*0.7),-u*3.3,u*0.7,u*0.09);
+    const hx=arm*u*0.62,hy=-u*3.15;ctx.fillStyle="#30363f";rr(hx-u*0.18,hy-u*0.1,u*0.36,u*0.14,u*0.05);ctx.fill();
+    const on=L.n>0.2;ctx.fillStyle=on?"#fff3c4":"#e8e2cf";ctx.beginPath();ctx.ellipse(hx,hy+u*0.05,u*0.14,u*0.05,0,0,7);ctx.fill();
+    if(on){LIGHTS.push({x:P.x+hx,y:P.y+hy,r:u*1.2,c:"255,236,170",a:0.8*L.n});LIGHTS.push({x:P.x+hx,y:P.y,r:u*1.8,c:"255,220,150",a:0.35*L.n,flat:1})}
+  }
+  ctx.restore();
+}
+const EMOJI_FONT='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+function drawItem(o){
+  const it=ITEMS[o.id];const y=0.7+(o.y0||0)+Math.sin(S.anim*4+o.bob)*0.12;
+  const P=proj(o.z,o.lx,y),u=unit()*P.s*vis(P.s);if(P.s<0.03)return;
+  const fix=S.g<70&&it.k==="bad"&&it.fast;
+  const ring={good:"#2fa866",water:"#2f9ee0",ex:"#2f7fe0",med:"#8a5cd6",bad:fix?"#2fa866":"#e2483d",veg:"#2fa866",prot:"#f08a3c",carb:"#e8b21c",pw:"#e8b21c"}[it.k];
+  const sh=proj(o.z,o.lx);ctx.fillStyle="#00000026";ctx.beginPath();ctx.ellipse(sh.x,sh.y,u*0.55,u*0.16,0,0,7);ctx.fill();
+  if(it.k==="pw"){ctx.save();ctx.translate(P.x,P.y);ctx.rotate(S.anim*2);ctx.fillStyle="#ffe48a99";
+    for(let i=0;i<8;i++){ctx.rotate(Math.PI/4);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(u*1.1,-u*0.12);ctx.lineTo(u*1.1,u*0.12);ctx.fill()}ctx.restore()}
+  if(o.mag){ctx.strokeStyle="#ff6fa8";ctx.lineWidth=Math.max(1,u*0.05);ctx.setLineDash([u*0.15,u*0.12]);ctx.beginPath();ctx.arc(P.x,P.y,u*0.85,0,7);ctx.stroke();ctx.setLineDash([])}
+  ctx.fillStyle="#ffffffd8";ctx.strokeStyle=ring;ctx.lineWidth=Math.max(1.5,u*(it.k==="pw"?0.16:0.1));
+  ctx.beginPath();ctx.arc(P.x,P.y,u*0.68,0,7);ctx.fill();ctx.stroke();
+  ctx.font=`${Math.max(8,u*0.95)}px ${EMOJI_FONT}`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(it.e,P.x,P.y+u*0.04);
+}
+function label(t,u,y){if(u<14)return;ctx.font=`800 ${Math.max(9,u*0.3)}px Nunito,sans-serif`;ctx.textAlign="center";ctx.textBaseline="bottom";
+  const w=ctx.measureText(t).width+u*0.3;ctx.fillStyle="#14253dcc";rr(-w/2,y-u*0.42,w,u*0.42,u*0.1);ctx.fill();ctx.fillStyle="#fff";ctx.fillText(t,0,y-u*0.05)}
+function drawObs(o,L){
+  const P=proj(o.z,o.lx),u=unit()*P.s*vis(P.s,0.3);if(P.s<0.03)return;
+  ctx.save();ctx.translate(P.x,P.y);
+  ctx.fillStyle="#00000030";ctx.beginPath();ctx.ellipse(0,0,u*0.95,u*0.22,0,0,7);ctx.fill();
+  if(o.type==="sofa"){
+    const g=ctx.createLinearGradient(0,-u,0,0);g.addColorStop(0,"#d0584c");g.addColorStop(1,"#9b3a33");
+    ctx.fillStyle=g;rr(-u*0.95,-u*1.0,u*1.9,u*0.55,u*0.14);ctx.fill();
+    ctx.fillStyle="#cf5a4f";rr(-u*0.82,-u*0.62,u*0.8,u*0.36,u*0.1);ctx.fill();rr(u*0.02,-u*0.62,u*0.8,u*0.36,u*0.1);ctx.fill();
+    ctx.fillStyle="#8e342e";rr(-u*1.05,-u*0.78,u*0.28,u*0.62,u*0.1);ctx.fill();rr(u*0.77,-u*0.78,u*0.28,u*0.62,u*0.1);ctx.fill();
+    ctx.fillStyle="#3c2a24";ctx.fillRect(-u*0.85,-u*0.16,u*0.12,u*0.16);ctx.fillRect(u*0.73,-u*0.16,u*0.12,u*0.16);
+    ctx.font=`${u*0.45}px ${EMOJI_FONT}`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("🎮",u*0.45,-u*0.75);
+    label("PULE ↑",u,-u*1.15);
+  }else if(o.type==="tela"){
+    ctx.fillStyle="#3b4250";ctx.fillRect(-u*1.0,-u*2.3,u*0.1,u*2.3);ctx.fillRect(u*0.9,-u*2.3,u*0.1,u*2.3);
+    ctx.fillStyle="#1b2230";rr(-u*0.95,-u*2.35,u*1.9,u*1.05,u*0.08);ctx.fill();
+    const sc=ctx.createLinearGradient(0,-u*2.25,0,-u*1.4);sc.addColorStop(0,"#5ab8ff");sc.addColorStop(1,"#2c6fd6");ctx.fillStyle=sc;ctx.fillRect(-u*0.85,-u*2.25,u*1.7,u*0.85);
+    ctx.fillStyle="#fff";ctx.beginPath();ctx.moveTo(-u*0.12,-u*2.0);ctx.lineTo(u*0.22,-u*1.82);ctx.lineTo(-u*0.12,-u*1.64);ctx.fill();
+    if(L.n>0.2)LIGHTS.push({x:P.x,y:P.y-u*1.8,r:u*1.4,c:"90,170,255",a:0.5*L.n});
+    label("ABAIXE ↓",u,-u*2.45);
+  }else{
+    for(let i=0;i<3;i++){const y=-u*(0.78*(i+1));ctx.fillStyle=i%2?"#2a3242":"#353e50";rr(-u*0.85,y,u*1.7,u*0.74,u*0.06);ctx.fill();
+      ctx.fillStyle=["#ff7a59","#5ad1a8","#ffd166"][i];ctx.fillRect(-u*0.72,y+u*0.1,u*1.44,u*0.52)}
+    if(L.n>0.2)LIGHTS.push({x:P.x,y:P.y-u*1.2,r:u*1.6,c:"255,160,120",a:0.4*L.n});
+    label(S.turbo>0?"PULO DUPLO ↑↑":"DESVIE ←→",u,-u*2.5);
+  }
+  ctx.restore();
+}
+function drawBoss(L){
+  const B=S.boss;const enter=Math.min(1,B.t/1.2),leave=Math.min(1,Math.max(0,(B.dur-B.t)/1.2));
+  const zz=30+(1-Math.min(enter,leave))*80;const P=proj(zz,B.lx,4.6+Math.sin(B.t*3)*0.3),u=unit()*P.s*1.7;
+  ctx.save();ctx.translate(P.x,P.y);
+  const sh=proj(zz,B.lx);ctx.fillStyle="#00000030";ctx.beginPath();ctx.ellipse(sh.x-P.x,sh.y-P.y,u*1.6,u*0.35,0,0,7);ctx.fill();
+  if(B.type==="lata"){
+    const w=u*1.5,h=u*2.6;const g=ctx.createLinearGradient(-w,0,w,0);g.addColorStop(0,"#9b1d1d");g.addColorStop(0.35,"#e8463c");g.addColorStop(0.6,"#ff6a5c");g.addColorStop(1,"#8f1a1a");
+    ctx.fillStyle=g;ctx.fillRect(-w,-h/2,w*2,h);
+    ctx.fillStyle="#c9ced6";ctx.beginPath();ctx.ellipse(0,-h/2,w,u*0.28,0,0,7);ctx.fill();ctx.beginPath();ctx.ellipse(0,h/2,w,u*0.28,0,0,7);ctx.fill();
+    ctx.fillStyle="#fff";ctx.font=`700 ${u*0.42}px Fredoka,sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("ULTRA",0,u*0.55);
+  }else{
+    ctx.fillStyle="#e3a24a";ctx.beginPath();ctx.ellipse(0,-u*0.6,u*1.7,u*0.9,0,Math.PI,0);ctx.fill();
+    ctx.fillStyle="#4cae4c";ctx.fillRect(-u*1.75,-u*0.65,u*3.5,u*0.25);
+    ctx.fillStyle="#6b3a1e";rr(-u*1.7,-u*0.42,u*3.4,u*0.6,u*0.2);ctx.fill();
+    ctx.fillStyle="#ffcf3f";ctx.fillRect(-u*1.75,u*0.15,u*3.5,u*0.18);
+    ctx.fillStyle="#e3a24a";rr(-u*1.65,u*0.3,u*3.3,u*0.55,u*0.25);ctx.fill();
+    ctx.fillStyle="#fff7";for(const x of[-0.8,-0.2,0.5,1])ctx.fillRect(u*x,-u*1.1,u*0.12,u*0.06);
+  }
+  // rosto bravo
+  const ey=B.type==="lata"?-u*0.5:-u*0.95;
+  ctx.fillStyle="#fff";for(const s of[-1,1]){ctx.beginPath();ctx.arc(s*u*0.5,ey,u*0.26,0,7);ctx.fill()}
+  ctx.fillStyle="#14253d";for(const s of[-1,1]){ctx.beginPath();ctx.arc(s*u*0.45,ey+u*0.04,u*0.12,0,7);ctx.fill()}
+  ctx.strokeStyle="#14253d";ctx.lineWidth=u*0.1;ctx.lineCap="round";
+  for(const s of[-1,1]){ctx.beginPath();ctx.moveTo(s*u*0.8,ey-u*0.38);ctx.lineTo(s*u*0.25,ey-u*0.22);ctx.stroke()}
+  if(B.type==="lata"){ctx.beginPath();ctx.arc(0,-u*0.02,u*0.28,Math.PI*1.15,Math.PI*1.85);ctx.stroke()}
+  label("CHEFÃO ULTRAPROCESSADO",u,B.type==="lata"?-u*1.6:-u*1.6);
+  ctx.restore();
+}
+
+function drawPlayer(L){
+  const P=proj(0,S.px,S.y);const k=unit()*1.95/100;
+  const fat=1-0.55*(S.cond/100);
+  const hypo=S.g<70,hyper=S.g>180,green=zoneOf(S.g)==="g";
+  const cadence=(green?11:hyper?8:9)+S.speed*0.12;const ph=S.anim*cadence;
+  const sliding=S.slide>0;const tx=hypo?(Math.random()-0.5)*k*4:0;
+  const G=proj(0,S.px);
+  // rastro brilhante sob os pés
+  if(green&&S.y<0.1){const gr=ctx.createRadialGradient(G.x,G.y+k*6,0,G.x,G.y+k*6,k*40);gr.addColorStop(0,"rgba(157,255,185,.55)");gr.addColorStop(1,"rgba(157,255,185,0)");ctx.fillStyle=gr;ctx.fillRect(G.x-k*45,G.y-k*20,k*90,k*60)}
+  ctx.fillStyle="#00000038";ctx.beginPath();ctx.ellipse(G.x,G.y,k*(24+fat*12)/(1+S.y*0.4),k*7,0,0,7);ctx.fill();
+  ctx.save();ctx.translate(P.x+tx,P.y);
+  if(S.inv>0&&Math.floor(S.anim*14)%2===0)ctx.globalAlpha=0.45;
+  if(sliding)ctx.scale(1.1,0.6);
+  const bob=S.y>0?0:Math.abs(Math.sin(ph))*k*3;ctx.translate(0,-bob);
+  const OL="#1b2433",olw=k*1.4;
+  const skinC="#c98e66",skinD="#ad7452",shirt=hyper?"#e46a4f":skin==="esteto"?"#f4f7fa":"#2f7fe0",shirtD=hyper?"#bf4f38":skin==="esteto"?"#c9d3dd":"#2462b3";
+  const shorts="#22324a",hair="#2b1d16";
+  const hipX=k*(7+fat*6);ctx.lineCap="round";ctx.lineJoin="round";
+  // pernas (coxa + canela, joelho dobrando)
+  for(const s of[-1,1]){
+    const sw=Math.sin(ph)*s;const lift=S.y>0?0.6:Math.max(0,sw);
+    const hip=[s*hipX,-k*42],knee=[s*hipX*1.04,-k*24-lift*k*8],foot=[s*hipX*1.02,-k*6-lift*k*15];
+    ctx.strokeStyle=OL;ctx.lineWidth=k*(10+fat*4)+olw*2;ctx.beginPath();ctx.moveTo(...hip);ctx.lineTo(...knee);ctx.lineTo(...foot);ctx.stroke();
+    ctx.strokeStyle=skinC;ctx.lineWidth=k*(10+fat*4);ctx.beginPath();ctx.moveTo(...hip);ctx.lineTo(...knee);ctx.lineTo(...foot);ctx.stroke();
+    ctx.strokeStyle="#ffffff";ctx.lineWidth=k*(9+fat*3);ctx.beginPath();ctx.moveTo(foot[0],foot[1]-k*5);ctx.lineTo(...foot);ctx.stroke();
+    // tênis visto de trás (calcanhar + sola)
+    const neon=skin==="corredor";
+    ctx.fillStyle=OL;rr(foot[0]-k*8,foot[1]-k*3,k*16,k*11,k*4);ctx.fill();
+    ctx.fillStyle=neon?"#b6ff3b":"#f2f2f2";rr(foot[0]-k*7,foot[1]-k*2,k*14,k*8,k*3);ctx.fill();
+    ctx.fillStyle=neon?"#ff4f8b":"#e2483d";rr(foot[0]-k*7,foot[1]+k*4,k*14,k*3,k*1.5);ctx.fill();
+    if(lift>0.4){ctx.fillStyle="#00000033";ctx.fillRect(foot[0]-k*5,foot[1]+k*4.5,k*10,k*1)}
+  }
+  // shorts
+  const tw=k*(17+fat*15);
+  ctx.fillStyle=OL;rr(-tw*0.97-olw,-k*52-olw,tw*1.94+olw*2,k*17+olw*2,k*6);ctx.fill();
+  ctx.fillStyle=shorts;rr(-tw*0.97,-k*52,tw*1.94,k*17,k*6);ctx.fill();
+  ctx.fillStyle="#ffffff55";ctx.fillRect(-tw*0.97,-k*44,tw*0.18,k*8);ctx.fillRect(tw*0.79,-k*44,tw*0.18,k*8);
+  // braços
+  const arms=[];
+  for(const s of[-1,1]){const sw=Math.sin(ph)*s;
+    const sh=[s*(tw-k*3),-k*78],el=[s*(tw+k*6),-k*64-sw*k*6],hd=[s*(tw+k*3),-k*55-sw*k*13];arms.push([sh,el,hd])}
+  for(const [sh,el,hd] of arms){ctx.strokeStyle=OL;ctx.lineWidth=k*(8+fat*3)+olw*2;ctx.beginPath();ctx.moveTo(...sh);ctx.lineTo(...el);ctx.lineTo(...hd);ctx.stroke()}
+  // tronco com sombreamento
+  ctx.fillStyle=OL;ctx.beginPath();ctx.ellipse(0,-k*64,tw+olw,k*(22+fat*3)+olw,0,0,7);ctx.fill();
+  const tg=ctx.createLinearGradient(-tw,0,tw,0);tg.addColorStop(0,shirtD);tg.addColorStop(0.35,shirt);tg.addColorStop(0.7,shirt);tg.addColorStop(1,shirtD);
+  ctx.fillStyle=tg;ctx.beginPath();ctx.ellipse(0,-k*64,tw,k*(22+fat*3),0,0,7);ctx.fill();
+  ctx.fillStyle=skin==="esteto"?"#2f7fe0":"#ffffffcc";ctx.font=`700 ${k*10}px Fredoka,sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(skin==="esteto"?"+ SAÚDE":"70-180",0,-k*62);
+  for(const [sh,el,hd] of arms){
+    ctx.strokeStyle=skinC;ctx.lineWidth=k*(8+fat*3);ctx.beginPath();ctx.moveTo(...sh);ctx.lineTo(...el);ctx.lineTo(...hd);ctx.stroke();
+    ctx.strokeStyle=shirt;ctx.lineWidth=k*(9+fat*3);ctx.beginPath();ctx.moveTo(...sh);ctx.lineTo(sh[0]+(el[0]-sh[0])*0.55,sh[1]+(el[1]-sh[1])*0.55);ctx.stroke();
+    ctx.fillStyle=skinD;ctx.beginPath();ctx.arc(hd[0],hd[1],k*4.6,0,7);ctx.fill();
+  }
+  // acessório: mochila de hidratação
+  if(skin==="mochila"){ctx.fillStyle=OL;rr(-k*13-olw,-k*80-olw,k*26+olw*2,k*30+olw*2,k*7);ctx.fill();
+    ctx.fillStyle="#18a37a";rr(-k*13,-k*80,k*26,k*30,k*7);ctx.fill();ctx.fillStyle="#7fd0ff";rr(-k*8,-k*74,k*16,k*15,k*4);ctx.fill();
+    ctx.strokeStyle="#2b6f8f";ctx.lineWidth=k*2;ctx.beginPath();ctx.moveTo(k*10,-k*79);ctx.quadraticCurveTo(k*20,-k*90,k*12,-k*84);ctx.stroke()}
+  // pescoço, orelhas, cabeça
+  ctx.fillStyle=skinD;ctx.fillRect(-k*5,-k*87,k*10,k*8);
+  ctx.fillStyle=OL;ctx.beginPath();ctx.arc(-k*13,-k*92,k*3.6+olw,0,7);ctx.arc(k*13,-k*92,k*3.6+olw,0,7);ctx.fill();
+  ctx.fillStyle=skinC;ctx.beginPath();ctx.arc(-k*13,-k*92,k*3.6,0,7);ctx.arc(k*13,-k*92,k*3.6,0,7);ctx.fill();
+  ctx.fillStyle=OL;ctx.beginPath();ctx.arc(0,-k*95,k*13+olw,0,7);ctx.fill();
+  const hg=ctx.createRadialGradient(-k*4,-k*101,k*2,0,-k*95,k*14);hg.addColorStop(0,"#5a3f30");hg.addColorStop(1,hair);
+  ctx.fillStyle=hg;ctx.beginPath();ctx.arc(0,-k*95,k*13,0,7);ctx.fill();
+  ctx.strokeStyle="#ffffff22";ctx.lineWidth=k*1.2;for(const a of[-0.5,0,0.5]){ctx.beginPath();ctx.arc(0,-k*95,k*9,-Math.PI/2+a-0.3,-Math.PI/2+a+0.3);ctx.stroke()}
+  // acessórios na cabeça/pescoço
+  if(skin==="corredor"){ctx.fillStyle="#ff4f8b";ctx.fillRect(-k*13.5,-k*99,k*27,k*4.5);ctx.fillStyle="#ff4f8b";
+    ctx.beginPath();ctx.moveTo(-k*2,-k*95);ctx.lineTo(-k*6,-k*86+Math.sin(ph)*k*2);ctx.lineTo(k*1,-k*94);ctx.fill()}
+  if(skin==="fone"){ctx.strokeStyle=OL;ctx.lineWidth=k*4.5;ctx.beginPath();ctx.arc(0,-k*94,k*15,Math.PI*1.08,Math.PI*1.92);ctx.stroke();
+    ctx.strokeStyle="#7a5cf0";ctx.lineWidth=k*3;ctx.beginPath();ctx.arc(0,-k*94,k*15,Math.PI*1.08,Math.PI*1.92);ctx.stroke();
+    for(const s of[-1,1]){ctx.fillStyle=OL;rr(s*k*15-k*4.5,-k*98,k*9,k*12,k*3);ctx.fill();ctx.fillStyle="#7a5cf0";rr(s*k*15-k*3.5,-k*97,k*7,k*10,k*2.5);ctx.fill()}}
+  if(skin==="esteto"){ctx.strokeStyle="#33404f";ctx.lineWidth=k*2.6;ctx.beginPath();ctx.moveTo(-k*9,-k*82);ctx.quadraticCurveTo(0,-k*78,k*9,-k*82);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(-k*9,-k*82);ctx.quadraticCurveTo(-k*14,-k*72,-k*12,-k*62);ctx.stroke();ctx.fillStyle="#c9ced6";ctx.beginPath();ctx.arc(-k*12,-k*60,k*3.5,0,7);ctx.fill()}
+  // suor (hiper e hipo)
+  if(hyper||hypo){ctx.fillStyle="#7fd0ff";
+    for(let i=0;i<5;i++){const t=(S.anim*1.6+i*0.21)%1;const sx=(i%2?1:-1)*(k*15+i*k*2);const sy=-k*96+t*k*32;
+      ctx.globalAlpha=1-t;ctx.beginPath();ctx.moveTo(sx,sy-k*4);ctx.quadraticCurveTo(sx+k*3,sy+k,sx,sy+k*3);ctx.quadraticCurveTo(sx-k*3,sy+k,sx,sy-k*4);ctx.fill()}
+    ctx.globalAlpha=1}
+  if(S.shield>0){ctx.strokeStyle="#5ad1a8";ctx.lineWidth=k*3;ctx.globalAlpha=0.5+0.3*Math.sin(S.anim*8);ctx.beginPath();ctx.ellipse(0,-k*55,tw+k*18,k*62,0,0,7);ctx.stroke();ctx.globalAlpha=1}
+  if(S.insShield){ctx.strokeStyle="#b48cff";ctx.lineWidth=k*2.5;ctx.setLineDash([k*6,k*4]);ctx.beginPath();ctx.ellipse(0,-k*55,tw+k*24,k*66,0,0,7);ctx.stroke();ctx.setLineDash([])}
+  if(S.boost>0){ctx.strokeStyle="#ffffffaa";ctx.lineWidth=k*2;for(let i=0;i<3;i++){const y=-k*(30+i*18);ctx.beginPath();ctx.moveTo(-tw-k*14,y);ctx.lineTo(-tw-k*30,y+k*4);ctx.moveTo(tw+k*14,y);ctx.lineTo(tw+k*30,y+k*4);ctx.stroke()}}
+  ctx.restore();
+  if(L.n>0.2)LIGHTS.push({x:P.x,y:P.y-k*55,r:k*90,c:"255,250,220",a:0.28*L.n});
+}
+
+function drawRain(){
+  const r=S.rain;if(r<0.03)return;
+  const want=Math.round((TOUCH?90:160)*r);while(S.drops.length<want)S.drops.push({x:Math.random()*W*1.2,y:Math.random()*H,v:600+Math.random()*400});
+  if(S.drops.length>want)S.drops.length=want;
+  ctx.strokeStyle=`rgba(210,225,255,${0.5*r})`;ctx.lineWidth=1.2;ctx.beginPath();
+  for(const d of S.drops){ctx.moveTo(d.x,d.y);ctx.lineTo(d.x-6,d.y+16)}ctx.stroke();
+  ctx.fillStyle=`rgba(90,105,130,${0.18*r})`;ctx.fillRect(0,0,W,H);
+}
+function stepRain(dt){for(const d of S.drops){d.y+=d.v*dt;d.x-=d.v*dt*0.35;if(d.y>H||d.x<-20){d.y=-20;d.x=Math.random()*W*1.25}}}
+
+function render(){
+  ctx.clearRect(0,0,W,H);LIGHTS=[];
+  const L=S?lightAt(S.t):{n:0,d:0,c:0.2};
+  drawSky(L);drawGround(L);
+  if(S){
+    const list=[];
+    for(const p of S.props)list.push({z:p.type==="casa"?Math.max(p.z,NEAR+0.1)+0.05:p.z,f:()=>drawProp(p,L)});
+    for(const o of S.objs)if(!(o.done&&o.kind==="item"))list.push({z:o.z,f:()=>o.kind==="item"?drawItem(o):drawObs(o,L)});
+    if(S.boss)list.push({z:31,f:()=>drawBoss(L)});
+    list.push({z:0.01,f:()=>drawPlayer(L)});
+    list.sort((a,b)=>b.z-a.z);for(const d of list)d.f();
+  }
+  // escurecer (noite / entardecer)
+  if(L.n>0.01){ctx.fillStyle=`rgba(10,18,48,${0.5*L.n})`;ctx.fillRect(0,0,W,H)}
+  if(L.d>0.01){ctx.fillStyle=`rgba(255,130,70,${0.12*L.d})`;ctx.fillRect(0,0,W,H)}
+  // luzes
+  if(LIGHTS.length||L.n>0.1){ctx.save();ctx.globalCompositeOperation="lighter";drawCityLights(L);
+    for(const l of LIGHTS){const g=ctx.createRadialGradient(l.x,l.y,0,l.x,l.y,l.r);g.addColorStop(0,`rgba(${l.c},${l.a})`);g.addColorStop(1,`rgba(${l.c},0)`);ctx.fillStyle=g;
+      if(l.flat){ctx.save();ctx.translate(l.x,l.y);ctx.scale(1,0.3);ctx.translate(-l.x,-l.y);ctx.fillRect(l.x-l.r,l.y-l.r,l.r*2,l.r*2);ctx.restore()}else ctx.fillRect(l.x-l.r,l.y-l.r,l.r*2,l.r*2)}
+    ctx.restore()}
+  if(!S)return;
+  // banner do prato
+  if(S.plate){const y=Math.max(horizon()+4,narrow()?194:0),sh=narrow(),pl=S.plate;const labels=[[sh?"½ VEG":"½ VEGETAIS","#2fa866",-1,pl.veg],[sh?"¼ PROT":"¼ PROTEÍNA","#f08a3c",0,pl.prot],[sh?"¼ CARB":"¼ CARBOIDRATO","#c9930f",1,pl.carb]];
+    ctx.font=`800 ${Math.max(11,Math.min(15,W/42))}px Nunito,sans-serif`;ctx.textAlign="center";ctx.textBaseline="middle";
+    for(const [t,c,lx,n] of labels){const x=W/2+lx*Math.min(W*0.3,200),txt=t+" · "+n,w=ctx.measureText(txt).width+14;ctx.fillStyle=c;rr(x-w/2,y,w,22,8);ctx.fill();ctx.fillStyle="#fff";ctx.fillText(txt,x,y+11)}}
+  // partículas
+  for(const p of S.parts){ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill()}ctx.globalAlpha=1;
+  drawRain();
+  if(S.flash>0){ctx.fillStyle=`rgba(226,72,61,${S.flash*0.5})`;ctx.fillRect(0,0,W,H)}
+  if(S.g<54||S.g>250){ctx.strokeStyle=`rgba(226,72,61,${0.4+0.3*Math.sin(S.anim*10)})`;ctx.lineWidth=10;ctx.strokeRect(5,5,W-10,H-10)}
+}
+
+// filtros de sintomas
+let lastFilter="";
+function setFilters(g){
+  let cf="none",blur=0;
+  if(g!=null){
+    if(g<70){const a=Math.min(0.9,0.35+(70-g)/30);cf=`grayscale(${a.toFixed(2)}) brightness(0.95)`}
+    else if(g>180){blur=Math.min(1,(g-180)/70+0.25);cf=`sepia(${(0.25*blur).toFixed(2)}) saturate(0.95)`}
+    else cf="saturate(1.18) brightness(1.03)";
+  }
+  if(TOUCH&&g!=null&&g>=70&&g<=180)cf="none"; // filtro na tela inteira pesa no celular; sintomas continuam
+  if(cf!==lastFilter){C.style.filter=cf==="none"?"":cf;lastFilter=cf}
+  $("blur").style.opacity=blur.toFixed(2);$("tint").style.opacity=(blur*0.9).toFixed(2);
+}
+
+let lastG=null,lastChips=null,hudAcc=1;
+const ZT={r:["Fora do alvo: risco!","var(--bad)"],y:["Atenção","#c27c00"],g:["Na faixa-alvo · pontos ×2","var(--ok)"]};
+function hud(){
+  const gv=Math.round(S.g);if(gv!==lastG){lastG=gv;$("gval").innerHTML=gv+" <small>mg/dL</small>"}
+  $("marker").style.left=Math.max(0,Math.min(100,(S.g-40)/260*100))+"%";
+  const z=zoneOf(S.g);let label=ZT[z][0];
+  if(S.g<54)label="Hipoglicemia nível 2: corrija já!";else if(S.g<70)label="Hipoglicemia: 15 g de carboidrato rápido";
+  else if(S.g>250)label="Hiperglicemia grave";else if(S.g>180)label="Hiperglicemia: visão embaçada";
+  const zn=$("zone");zn.textContent=label;zn.style.color=ZT[z][1];
+  $("hearts").textContent="♥".repeat(Math.max(0,S.lives))+"♡".repeat(Math.max(0,3-S.lives));
+  $("score").textContent=Math.round(S.score);
+  const L=lightAt(S.t);$("day").textContent="Dia "+S.day+(L.n>0.5?" · noite":L.d>0.4?" · entardecer":" · dia");
+  $("dist").textContent=Math.round(S.dist/3)+" m";
+  $("cond").style.width=S.cond+"%";
+  const qs=Math.max(0,S.quizT);$("qt").textContent=Math.ceil(qs)+"s";
+  const qr=$("qring");qr.style.setProperty("--p",(qs/30).toFixed(3));qr.classList.toggle("soon",qs<=5);
+  let c="";
+  // ícone + tempo sempre; o nome por extenso só aparece em tela grande
+  const chip=(ic,full,col,sec)=>c+=`<span class="chip" style="background:${col}" title="${full}" aria-label="${full}">${ic}<span class="cfull">${full}</span>${sec?` ${sec}s`:""}</span>`;
+  if(S.magnet>0)chip("🧲","Ímã","#d6457f",Math.ceil(S.magnet));
+  if(S.turbo>0)chip("👟","Pulo duplo","var(--gold)",Math.ceil(S.turbo));
+  else if(S.boost>0)chip("⚡","Sensibilidade ↑","var(--ex)",Math.ceil(S.boost));
+  if(S.insShield)chip("🛡️","Escudo de Insulina","#8a5cd6");
+  if(S.shield>0)chip("✅","Escudo do quiz","var(--ok)",Math.ceil(S.shield));
+  if(S.mult>0)chip("×2","Pontos extra","#c27c00",Math.ceil(S.mult));
+  if(S.rain>0.5)chip("🌧️","Chuva","#5b6b80");
+  if(c!==lastChips){lastChips=c;$("chips").innerHTML=c}
+  setFilters(S.g);
+}
+
+let last=performance.now();
+const APP=document.getElementById("app");
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(APP.dataset.s!==state)APP.dataset.s=state;
+  if(state==="run"){update(dt);hudAcc+=dt;if((state==="run"||state==="quiz")&&hudAcc>=0.08){hudAcc=0;hud()}stepRain(dt)}
+  if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$("toast").classList.remove("on")}
+  render();
+  requestAnimationFrame(loop);
+}
+resize();newGame();
+requestAnimationFrame(loop);
+})();
+</script>
+
+</body></html>
