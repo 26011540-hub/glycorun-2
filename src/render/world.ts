@@ -110,7 +110,7 @@ export class World3D {
   private post = new Symptoms();
   private size = { w: 1, h: 1 };
   /** Câmera de perto (só desenvolvimento). */
-  closeup: { x: number; y: number; z: number } | null = null;
+  closeup: { x: number; y: number; z: number; ly?: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -435,7 +435,7 @@ export class World3D {
     if (this.closeup) {
       // só para conferir o personagem de perto durante o desenvolvimento
       this.camera.position.set(x + this.closeup.x, s.y + this.closeup.y, this.closeup.z);
-      this.camera.lookAt(x, s.y + 0.9, 0);
+      this.camera.lookAt(x, s.y + (this.closeup.ly ?? 0.9), 0);
     }
 
     this.sky.update(L, s.rain, this.camera);

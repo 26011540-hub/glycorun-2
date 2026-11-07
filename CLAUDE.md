@@ -32,7 +32,8 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
 ## Técnica
 - Vite + TypeScript + Three.js. `npm run dev` (jogo), `npm test` (regras), `npm run build` (publicação).
 - Meta: 60 fps em celular intermediário. Reutilizar objetos (pools), evitar criar geometria/material por quadro.
-- Arte 3D feita em código (`src/render/builder.ts` junta formas simples num modelo só). Recursos externos só com
+- Arte 3D feita em código (`src/render/builder.ts` junta formas simples num modelo só; `src/render/body.ts` gera o corpo
+  contínuo do personagem com esqueleto e deformação de engordar). Recursos externos só com
   licença livre (CC0 de preferência), registrados em `CREDITOS.md`.
 - No modo dev, `window.__glyco` permite avançar quadros (`advance`) e salvar capturas em `.debug/` (`shot`).
 - Qualidade gráfica em `src/core/quality.ts` (automática baixa um nível abaixo de ~48 fps). Sintomas de hipo/hiper

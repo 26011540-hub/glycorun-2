@@ -1,18 +1,15 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { SkinId } from "../content/texts";
-import { textTexture } from "./builder";
+import { seeded, textTexture } from "./builder";
+import { assemble, JOINTS, loft, rigid, type Joint, type Part, type Ring, type Role, type Weights } from "./body";
 
 /**
- * Personagem original do GlycoRun 2, montado em código (low-poly, proporções próximas do real: ~7,5 cabeças).
- * Ele corre para -z (de costas para a câmera). Altura ~1,77.
- * O corpo alarga com condicionamento baixo (decisão do autor) por escala suave do tronco, barriga, quadril e membros.
- *
- * Desempenho: as peças de cada articulação são juntadas numa só malha com cores por vértice
- * (~18 chamadas de desenho para o personagem inteiro).
+ * Personagem original do GlycoRun 2: corpo contínuo gerado em código (ver body.ts), com esqueleto real.
+ * Proporções humanas (~7,9 cabeças, altura ~1,77). Ele corre para -z (de costas para a câmera).
+ * Engordar e emagrecer é uma deformação suave do próprio corpo (decisão do autor).
+ * Tudo vira uma malha só: 1 chamada de desenho para o personagem inteiro (+1 para o letreiro do ACS).
+ * A versão anterior, de peças separadas, está guardada em character-v1.ts.
  */
-
-type Joint = "hips" | "torso" | "head" | "armL" | "armR" | "foreL" | "foreR" | "thighL" | "thighR" | "shinL" | "shinR" | "footL" | "footR";
 
 /** Ângulos de uma pose (radianos) + altura do quadril. */
 interface Pose {
@@ -27,6 +24,7 @@ const KEYS = [
 ] as const;
 
 const HIP_Y = 0.95;
+const ARM_X = 0.2;
 const STAND: Pose = {
   hipY: HIP_Y, hipsRx: 0, torsoRx: 0, torsoRy: 0, torsoRz: 0, headRx: 0,
   armLx: 0.05, armLz: -0.12, armRx: 0.05, armRz: 0.12, foreL: 0.25, foreR: 0.25,
@@ -44,48 +42,217 @@ export interface AnimInput {
 }
 
 // ---------- Aparência ----------
-type Role = "skin" | "hair" | "shirt" | "shorts" | "shoe" | "sole" | "legs" | "white" | "dark" | number;
 const SKIN_TONE = 0x9a6847;
-const HAIR = 0x261a14;
-interface Outfit { shirt: number; shorts: number; shoe: number; sole: number; legs?: number }
+interface Outfit { shirt: number; vest?: number; shorts: number; band: number; shoe: number; sole: number; legs?: number }
 const OUTFIT: Record<SkinId, Outfit> = {
-  corredor: { shirt: 0x2f7fe0, shorts: 0x22324a, shoe: 0xb6ff3b, sole: 0xff4f8b },
-  fone: { shirt: 0x6f55e0, shorts: 0x2a2f45, shoe: 0xf4f4f4, sole: 0x6f55e0 },
-  mochila: { shirt: 0xf08a3c, shorts: 0x22324a, shoe: 0xf4f4f4, sole: 0xe2483d },
-  acs: { shirt: 0xe9f1fa, shorts: 0x3a4a63, shoe: 0x2e2a28, sole: 0x111111, legs: 0x3a4a63 },
+  corredor: { shirt: 0x2f7fe0, shorts: 0x22324a, band: 0x18263a, shoe: 0xb6ff3b, sole: 0xff4f8b },
+  fone: { shirt: 0x6f55e0, shorts: 0x2a2f45, band: 0x1c2032, shoe: 0xf4f4f4, sole: 0x6f55e0 },
+  mochila: { shirt: 0xf08a3c, shorts: 0x22324a, band: 0x18263a, shoe: 0xf4f4f4, sole: 0xe2483d },
+  acs: { shirt: 0xe9f1fa, vest: 0x1f5fa8, shorts: 0x3a4a63, band: 0x2c394e, shoe: 0x2e2a28, sole: 0x111111, legs: 0x3a4a63 },
 };
 const HYPER_SHIRT = new THREE.Color(0xe46a4f);
 
-// Classes de "engordar": quanto cada peça alarga (x, z) e cresce (y) com fat = 1
-type FatClass = "none" | "torso" | "belly" | "pelvis" | "limb" | "back";
-const FAT: Record<FatClass, [number, number, number]> = {
-  none: [0, 0, 0], torso: [0.28, 0.5, 0], belly: [0.45, 0.55, 0.3], pelvis: [0.35, 0.45, 0], limb: [0.4, 0.4, 0], back: [0, 0, 0],
-};
+const one = (j: Joint): Weights => [[j, 1]];
+const mix = (a: Joint, b: Joint, t: number): Weights => [[a, 1 - t], [b, t]];
 
-interface Part { joint: Joint; geo: THREE.BufferGeometry; role: Role; fat: FatClass; skin?: SkinId }
-interface Place { x?: number; y?: number; z?: number; rx?: number; ry?: number; rz?: number; sx?: number; sy?: number; sz?: number }
+/** Peças do cabelo: casca facetada e irregular, em dois tons (como no modelo de referência). */
+function hair(): THREE.BufferGeometry[] {
+  const base = new THREE.IcosahedronGeometry(1, 2);
+  const a = base.attributes.position;
+  const noise = new Map<string, number>();
+  const rnd = seeded(41);
+  const out: number[][] = [[], []];
+  const v = new THREE.Vector3();
+  const map = (i: number): THREE.Vector3 => {
+    v.fromBufferAttribute(a, i);
+    const key = `${v.x.toFixed(3)},${v.y.toFixed(3)},${v.z.toFixed(3)}`;
+    if (!noise.has(key)) noise.set(key, rnd());
+    const r = noise.get(key)!;
+    const n = 1 + (r - 0.5) * 0.24;
+    // linha do cabelo: alta na testa, baixa na nuca
+    const line = v.z < -0.2 ? 0.34 - 0.3 * Math.abs(v.x) : v.z < 0.2 ? -0.05 : -0.6;
+    const y = Math.max(v.y, line - (r - 0.5) * 0.14);
+    return new THREE.Vector3(v.x * 0.122 * n, y * 0.124 * n + 1.672, v.z * 0.13 * n + 0.006);
+  };
+  for (let i = 0; i < a.count; i += 3) {
+    const t = rnd() < 0.24 ? 1 : 0;
+    for (let k = 0; k < 3; k++) { const p = map(i + k); out[t].push(p.x, p.y, p.z); }
+  }
+  base.dispose();
+  return out.map((list) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(list, 3));
+    return g;
+  });
+}
+
+function buildParts(): Part[] {
+  const S = THREE.SphereGeometry, B = THREE.BoxGeometry, Cy = THREE.CylinderGeometry, To = THREE.TorusGeometry, Co = THREE.ConeGeometry;
+  const P: Part[] = [];
+  const hipsW = one("hips"), torsoW = one("torso");
+
+  // ----- tronco, do quadril ao pescoço -----
+  const T: Role = "vest"; // o tronco usa a cor do colete; sem colete, é a própria camiseta
+  const torso: Ring[] = [
+    { y: 0.79, rx: 0.03, rf: 0.04, role: "shorts", w: hipsW, sh: 0.8 },
+    { y: 0.83, rx: 0.12, rf: 0.092, rb: 0.1, role: "shorts", w: hipsW, sh: 0.86 },
+    { y: 0.89, rx: 0.15, rf: 0.098, rb: 0.112, role: "shorts", w: hipsW, fx: 0.02, ff: 0.02, fb: 0.03, sh: 0.92 },
+    { y: 0.96, rx: 0.165, rf: 0.1, rb: 0.125, role: "shorts", w: hipsW, fx: 0.04, ff: 0.03, fb: 0.045, sq: 0.85 },
+    { y: 1.02, rx: 0.158, rf: 0.098, rb: 0.112, role: "band", w: mix("hips", "torso", 0.2), fx: 0.05, ff: 0.055, fb: 0.04, sq: 0.85 },
+    { y: 1.05, rx: 0.155, rf: 0.098, rb: 0.108, role: T, w: mix("hips", "torso", 0.4), fx: 0.05, ff: 0.06, fb: 0.04, sq: 0.85, sh: 0.8 },
+    { y: 1.05, rx: 0.166, rf: 0.108, rb: 0.118, role: T, w: mix("hips", "torso", 0.4), fx: 0.05, ff: 0.06, fb: 0.04, sq: 0.85, sh: 0.9 },
+    { y: 1.13, rx: 0.15, rf: 0.1, rb: 0.104, role: T, w: mix("hips", "torso", 0.8), fx: 0.06, ff: 0.095, fb: 0.04, sh: 0.96 },
+    { y: 1.22, rx: 0.156, rf: 0.11, rb: 0.108, role: T, w: torsoW, fx: 0.055, ff: 0.085, fb: 0.04 },
+    { y: 1.32, rx: 0.176, rf: 0.124, rb: 0.118, role: T, w: torsoW, fx: 0.04, ff: 0.05, fb: 0.035, sq: 0.85, sh: 1.05 },
+    { y: 1.4, rx: 0.2, rf: 0.114, rb: 0.114, role: T, w: torsoW, fx: 0.05, ff: 0.03, fb: 0.03, sq: 0.8, sh: 1.08 },
+    { y: 1.45, rx: 0.2, rf: 0.082, rb: 0.09, role: "shirt", w: torsoW, fx: 0.05, ff: 0.015, fb: 0.02, sq: 0.8 },
+    { y: 1.475, rx: 0.13, rf: 0.07, rb: 0.078, role: "shirt", w: torsoW, fx: 0.02, ff: 0.012, fb: 0.015, sh: 1.05 },
+    { y: 1.49, rx: 0.074, rf: 0.066, rb: 0.07, role: "skin", w: torsoW, fx: 0.012, ff: 0.012, fb: 0.012 },
+    { y: 1.52, rx: 0.053, rf: 0.052, rb: 0.056, role: "skin", w: mix("torso", "head", 0.3), fx: 0.01, ff: 0.01, sh: 0.9 },
+    { y: 1.59, rx: 0.048, rf: 0.05, role: "skin", w: one("head"), sh: 0.86 },
+  ];
+  P.push(loft(torso, { seg: 12, capStart: true, seed: 11 }));
+
+  // ----- pernas -----
+  for (const [s, L] of [[-1, "L"], [1, "R"]] as const) {
+    const th: Joint = `thigh${L}`, sh: Joint = `shin${L}`, ft: Joint = `foot${L}`, x = s * 0.09;
+    const leg: Ring[] = [
+      { y: 0.95, x, rx: 0.075, rf: 0.08, rb: 0.09, role: "shorts", w: mix("hips", th, 0.4), fx: 0.015, ff: 0.015, fb: 0.02 },
+      { y: 0.84, x, rx: 0.098, rf: 0.1, rb: 0.108, role: "shorts", w: one(th), fx: 0.03, ff: 0.03, fb: 0.035 },
+      { y: 0.67, x, rx: 0.094, rf: 0.097, rb: 0.1, role: "shorts", w: one(th), fx: 0.03, ff: 0.03, fb: 0.03, sh: 0.88 },
+      { y: 0.67, x, rx: 0.076, rf: 0.08, rb: 0.084, role: "legs", w: one(th), fx: 0.024, ff: 0.024, fb: 0.024, sh: 0.82 },
+      { y: 0.56, x, rx: 0.066, rf: 0.072, rb: 0.072, role: "legs", w: mix(th, sh, 0.05), fx: 0.018, ff: 0.018, fb: 0.018 },
+      { y: 0.5, x, rx: 0.056, rf: 0.064, rb: 0.056, role: "legs", w: mix(th, sh, 0.25), fx: 0.01, ff: 0.01, fb: 0.01 },
+      { y: 0.46, x, rx: 0.055, rf: 0.066, rb: 0.05, role: "legs", w: mix(th, sh, 0.5), fx: 0.008, ff: 0.008, sh: 1.06 },
+      { y: 0.42, x, rx: 0.052, rf: 0.056, rb: 0.054, role: "legs", w: mix(th, sh, 0.8), fx: 0.008, ff: 0.008, fb: 0.008 },
+      { y: 0.33, x, rx: 0.058, rf: 0.05, rb: 0.074, role: "legs", w: one(sh), fx: 0.012, ff: 0.008, fb: 0.014 },
+      { y: 0.22, x, rx: 0.044, rf: 0.042, rb: 0.054, role: "legs", w: one(sh), fx: 0.008, ff: 0.006, fb: 0.008 },
+      { y: 0.13, x, rx: 0.034, rf: 0.036, rb: 0.038, role: "white", w: one(sh), sh: 0.96 },
+      { y: 0.13, x, rx: 0.037, rf: 0.039, rb: 0.041, role: "white", w: one(sh) },
+      { y: 0.07, x, rx: 0.037, rf: 0.042, rb: 0.042, role: "white", w: mix(sh, ft, 0.6) },
+    ];
+    P.push(loft(leg, { seg: 9, seed: 20 + s }));
+
+    // tênis: modelado ao longo do pé (calcanhar → bico)
+    const shoeRing = (z: number, rx: number, up: number, down: number, cy: number, role: Role, tone = 1): Ring =>
+      ({ y: z, x, z: cy, rx, rf: up, rb: down, role, w: one(ft), sh: tone });
+    P.push(loft([
+      shoeRing(0.085, 0.022, 0.024, 0.018, 0.056, "shoe", 0.92),
+      shoeRing(0.064, 0.046, 0.052, 0.036, 0.062, "shoe"),
+      shoeRing(-0.01, 0.052, 0.05, 0.036, 0.06, "shoe", 1.04),
+      shoeRing(-0.09, 0.054, 0.034, 0.03, 0.05, "shoe"),
+      shoeRing(-0.16, 0.047, 0.024, 0.024, 0.042, "shoe", 1.06),
+      shoeRing(-0.195, 0.024, 0.012, 0.014, 0.036, "shoe"),
+    ], { seg: 8, axis: "z", capStart: true, capEnd: true, seed: 30 + s, jitter: 0.008 }));
+    P.push(loft([
+      shoeRing(0.09, 0.03, 0.012, 0.012, 0.016, "sole"),
+      shoeRing(0.066, 0.052, 0.016, 0.016, 0.016, "sole"),
+      shoeRing(-0.1, 0.06, 0.016, 0.016, 0.016, "sole"),
+      shoeRing(-0.2, 0.03, 0.014, 0.014, 0.02, "sole"),
+    ], { seg: 8, axis: "z", capStart: true, capEnd: true, seed: 33 + s, jitter: 0.004 }));
+    for (let k = 0; k < 3; k++) P.push(rigid(new B(0.062, 0.009, 0.014), ft, "white", { x, y: 0.1 - k * 0.012, z: -0.035 - k * 0.032, rx: 0.32 }));
+  }
+
+  // ----- braços -----
+  for (const [s, L] of [[-1, "L"], [1, "R"]] as const) {
+    const ar: Joint = `arm${L}`, fo: Joint = `fore${L}`, x = s * ARM_X;
+    const arm: Ring[] = [
+      { y: 1.485, x, rx: 0.026, rf: 0.03, role: "shirt", w: one(ar) },
+      { y: 1.465, x, rx: 0.048, rf: 0.054, role: "shirt", w: one(ar), sh: 1.06 },
+      { y: 1.42, x, rx: 0.057, rf: 0.064, role: "shirt", w: one(ar), fx: 0.012, ff: 0.012, sh: 1.04 },
+      { y: 1.34, x, rx: 0.055, rf: 0.059, role: "shirt", w: one(ar), fx: 0.018, ff: 0.018 },
+      { y: 1.3, x, rx: 0.054, rf: 0.057, role: "shirt", w: one(ar), fx: 0.018, ff: 0.018, sh: 0.86 },
+      { y: 1.3, x, rx: 0.047, rf: 0.05, role: "skin", w: one(ar), fx: 0.016, ff: 0.016, sh: 0.8 },
+      { y: 1.24, x, rx: 0.046, rf: 0.052, role: "skin", w: one(ar), fx: 0.016, ff: 0.016 },
+      { y: 1.18, x, rx: 0.04, rf: 0.042, role: "skin", w: mix(ar, fo, 0.1), fx: 0.01, ff: 0.01 },
+      { y: 1.15, x, rx: 0.039, rf: 0.038, role: "skin", w: mix(ar, fo, 0.5), fx: 0.006, ff: 0.006 },
+      { y: 1.115, x, rx: 0.042, rf: 0.042, role: "skin", w: mix(ar, fo, 0.88), fx: 0.008, ff: 0.008 },
+      { y: 1.06, x, rx: 0.043, rf: 0.044, role: "skin", w: one(fo), fx: 0.008, ff: 0.008 },
+      { y: 0.98, x, rx: 0.033, rf: 0.034, role: "skin", w: one(fo), fx: 0.004, ff: 0.004 },
+      { y: 0.915, x, rx: 0.025, rf: 0.031, role: "skin", w: one(fo) },
+      { y: 0.885, x, rx: 0.016, rf: 0.036, role: "skin", w: one(fo) },
+    ];
+    P.push(loft(arm, { seg: 8, capStart: true, capEnd: true, seed: 40 + s }));
+    // mão: palma e dedos
+    P.push(rigid(new B(0.028, 0.075, 0.072), fo, "skin", { x, y: 0.865 }));
+    for (let k = 0; k < 4; k++) {
+      const z = -0.027 + k * 0.018, len = k === 0 || k === 3 ? 0.052 : 0.064;
+      P.push(rigid(new B(0.017, len, 0.0155), fo, "skin", { x: x - s * 0.006, y: 0.83 - len / 2, z, rz: s * 0.16, sh: 0.97 }));
+    }
+    P.push(rigid(new B(0.019, 0.055, 0.018), fo, "skin", { x: x - s * 0.012, y: 0.86, z: -0.05, rx: 0.5, rz: s * 0.2 }));
+  }
+  // sensor de glicose (CGM) atrás do braço esquerdo
+  P.push(rigid(new Cy(0.03, 0.03, 0.012, 10), "armL", "white", { x: -ARM_X, y: 1.245, z: 0.056, rx: Math.PI / 2, fat: [0, 0, 0.016] }));
+
+  // ----- cabeça -----
+  const H = one("head");
+  P.push(loft([
+    { y: 1.533, rx: 0.034, rf: 0.04, rb: 0.03, z: -0.03, role: "skin", w: H, sh: 0.92 },
+    { y: 1.56, rx: 0.066, rf: 0.082, rb: 0.058, z: -0.012, role: "skin", w: H, sh: 0.96 },
+    { y: 1.6, rx: 0.088, rf: 0.1, rb: 0.09, z: -0.005, role: "skin", w: H },
+    { y: 1.65, rx: 0.096, rf: 0.108, rb: 0.104, role: "skin", w: H, sh: 1.04 },
+    { y: 1.7, rx: 0.094, rf: 0.102, rb: 0.106, role: "skin", w: H, sh: 1.04 },
+    { y: 1.74, rx: 0.07, rf: 0.08, rb: 0.084, role: "skin", w: H },
+    { y: 1.757, rx: 0.03, rf: 0.03, role: "skin", w: H },
+  ], { seg: 10, capStart: true, capEnd: true, seed: 3, jitter: 0.01 }));
+  const [hairDark, hairLight] = hair();
+  P.push(rigid(hairDark, "head", "hair"), rigid(hairLight, "head", "hairLight"));
+  for (const [x, z, rz, rx, role] of [[-0.055, -0.108, -0.35, 0.22, "hair"], [0.0, -0.122, 0.1, 0.25, "hairLight"], [0.058, -0.106, 0.4, 0.22, "hair"]] as const) {
+    P.push(rigid(new Co(0.036, 0.06, 4), "head", role, { x, y: 1.74, z: z * 0.92, rx: Math.PI + rx, rz }));
+  }
+  for (const s of [-1, 1]) {
+    P.push(rigid(new S(0.026, 6, 5), "head", "skin", { x: s * 0.097, y: 1.64, sx: 0.55, sy: 1.15, sh: 0.94 }));
+    P.push(rigid(new S(0.012, 7, 5), "head", "dark", { x: s * 0.04, y: 1.652, z: -0.101, sx: 1.3, sz: 0.5 }));
+    P.push(rigid(new B(0.042, 0.009, 0.012), "head", "hair", { x: s * 0.04, y: 1.682, z: -0.104, rz: s * -0.1 }));
+  }
+  P.push(rigid(new Co(0.017, 0.05, 4), "head", "skin", { y: 1.625, z: -0.112, rx: -Math.PI / 2 - 0.5, sh: 1.05 }));
+  P.push(rigid(new B(0.042, 0.007, 0.01), "head", 0x6b3a2e, { y: 1.585, z: -0.09 }));
+
+  // ----- acessórios de cada visual -----
+  // Corredor: faixa de cabeça
+  P.push(rigid(new To(1, 0.13, 5, 18), "head", 0xff4f8b, { y: 1.7, rx: Math.PI / 2, sx: 0.116, sy: 0.128, sz: 0.1, skin: "corredor" }));
+  P.push(rigid(new B(0.028, 0.1, 0.01), "head", 0xff4f8b, { x: 0.02, y: 1.665, z: 0.128, rx: 0.3, rz: 0.3, skin: "corredor" }));
+  // Fone de ouvido
+  P.push(rigid(new To(0.126, 0.014, 5, 16, Math.PI), "head", 0x2b2250, { y: 1.655, skin: "fone" }));
+  for (const s of [-1, 1]) {
+    P.push(rigid(new Cy(0.05, 0.05, 0.036, 10), "head", 0x5a43c8, { x: s * 0.116, y: 1.645, rz: Math.PI / 2, skin: "fone" }));
+    P.push(rigid(new Cy(0.034, 0.034, 0.04, 8), "head", 0x2b2250, { x: s * 0.122, y: 1.645, rz: Math.PI / 2, skin: "fone" }));
+  }
+  // Mochila de hidratação nas costas (+z, visível para a câmera)
+  const back = (d: number): [number, number, number] => [0, 0, d];
+  P.push(rigid(new B(0.27, 0.34, 0.1), "torso", 0x18a37a, { y: 1.3, z: 0.178, fat: back(0.04), skin: "mochila" }));
+  P.push(rigid(new B(0.17, 0.19, 0.02), "torso", 0x7fd0ff, { y: 1.315, z: 0.234, fat: back(0.04), skin: "mochila" }));
+  P.push(rigid(new B(0.27, 0.05, 0.11), "torso", 0x0f7d5e, { y: 1.15, z: 0.18, fat: back(0.04), skin: "mochila" }));
+  P.push(rigid(new To(0.09, 0.008, 4, 10, Math.PI), "torso", 0x2b6f8f, { x: 0.13, y: 1.42, z: 0.14, ry: Math.PI / 2, fat: back(0.03), skin: "mochila" }));
+  for (const s of [-1, 1]) {
+    P.push(rigid(new B(0.036, 0.3, 0.018), "torso", 0x0f5e47, { x: s * 0.095, y: 1.33, z: -0.127, fat: back(-0.05), skin: "mochila" }));
+    P.push(rigid(new B(0.036, 0.018, 0.24), "torso", 0x0f5e47, { x: s * 0.095, y: 1.468, skin: "mochila" }));
+  }
+  // ACS: colete (cor do tronco), boné e bolsa de visita a tiracolo
+  P.push(rigid(new S(0.117, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), "head", 0x1f5fa8, { y: 1.682, sz: 1.08, skin: "acs" }));
+  P.push(rigid(new B(0.16, 0.012, 0.11), "head", 0x174a85, { y: 1.69, z: -0.15, rx: 0.12, skin: "acs" }));
+  P.push(rigid(new B(0.065, 0.17, 0.21), "hips", 0x8a5a3b, { x: -0.215, y: 0.98, fat: [-0.05, 0, 0], skin: "acs" }));
+  P.push(rigid(new B(0.07, 0.05, 0.215), "hips", 0x6f4730, { x: -0.215, y: 1.04, fat: [-0.05, 0, 0], skin: "acs" }));
+  P.push(rigid(new B(0.024, 0.6, 0.012), "torso", 0x8a5a3b, { y: 1.26, z: 0.122, rz: 0.62, fat: back(0.04), skin: "acs" }));
+  P.push(rigid(new B(0.024, 0.6, 0.012), "torso", 0x8a5a3b, { y: 1.26, z: -0.128, rz: 0.62, fat: back(-0.07), skin: "acs" }));
+  return P;
+}
 
 const MAT = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
-
-/** Cilindro com o topo na origem, crescendo para baixo (segmento de membro). */
-function limbGeo(rTop: number, rBot: number, len: number, seg = 7): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(rTop, rBot, len, seg);
-  g.translate(0, -len / 2, 0);
-  return g;
-}
 
 export class Character {
   readonly root = new THREE.Group();
-  private j = {} as Record<Joint, THREE.Group>;
-  private parts: Part[] = [];
-  private meshes: { mesh: THREE.Mesh; fat: FatClass; ranges: { start: number; count: number; role: Role }[] }[] = [];
+  private j = {} as Record<Joint, THREE.Bone>;
+  private skeleton: THREE.Skeleton;
+  private parts = buildParts();
+  private mesh: THREE.SkinnedMesh | null = null;
+  private tinted: { i: number; base: THREE.Color }[] = [];
+  private shade: Float32Array = new Float32Array(0);
   private skin: SkinId = "corredor";
   private shirtTint = -1;
-  private fatNow = 0;
   private label: THREE.Mesh;
-  private shoulders: THREE.Group[] = [];
-  private hipJoints: THREE.Group[] = [];
+  private shoulders: THREE.Bone[] = [];
+  private hipJoints: THREE.Bone[] = [];
   private pose: Pose = { ...STAND };
   private target: Pose = { ...STAND };
   private phase = 0;
@@ -93,196 +260,97 @@ export class Character {
   private cheerT = 0;
   private flipT = 0;
   private time = 0;
+  private fatNow = 0.85;
 
   constructor() {
     this.buildSkeleton();
-    this.buildParts();
+    this.root.updateMatrixWorld(true);
+    this.skeleton = new THREE.Skeleton(JOINTS.map((n) => this.j[n]));
     // rótulo "ACS" nas costas do colete (textura, malha à parte)
     this.label = new THREE.Mesh(
       new THREE.PlaneGeometry(0.2, 0.08),
       new THREE.MeshBasicMaterial({ map: textTexture("ACS", { w: 128, h: 48, fg: "#ffffff" }), transparent: true }),
     );
-    this.label.position.set(0, 0.3, 0.135);
+    this.label.position.set(0, 0.34, 0.124);
     this.j.torso.add(this.label);
     this.setSkin("corredor");
-    this.setFat(0.85);
+    this.setFat(this.fatNow);
   }
 
-  private joint(name: Joint, parent: THREE.Object3D, x: number, y: number, z = 0): THREE.Group {
-    const g = new THREE.Group();
-    g.position.set(x, y, z);
-    parent.add(g);
-    this.j[name] = g;
-    return g;
+  private bone(name: Joint, parent: THREE.Object3D, x: number, y: number): THREE.Bone {
+    const b = new THREE.Bone();
+    b.position.set(x, y, 0);
+    parent.add(b);
+    this.j[name] = b;
+    return b;
   }
 
   private buildSkeleton(): void {
-    const hips = this.joint("hips", this.root, 0, HIP_Y);
-    for (const side of [-1, 1] as const) {
-      const L = side < 0 ? "L" : "R";
-      const thigh = this.joint(`thigh${L}`, hips, side * 0.09, -0.05);
+    const hips = this.bone("hips", this.root, 0, HIP_Y);
+    for (const [s, L] of [[-1, "L"], [1, "R"]] as const) {
+      const thigh = this.bone(`thigh${L}`, hips, s * 0.09, -0.05);
       this.hipJoints.push(thigh);
-      const shin = this.joint(`shin${L}`, thigh, 0, -0.44);
-      this.joint(`foot${L}`, shin, 0, -0.42);
+      const shin = this.bone(`shin${L}`, thigh, 0, -0.44);
+      this.bone(`foot${L}`, shin, 0, -0.42);
     }
-    const torso = this.joint("torso", hips, 0, 0.06);
-    this.joint("head", torso, 0, 0.6);
-    for (const side of [-1, 1] as const) {
-      const L = side < 0 ? "L" : "R";
-      const arm = this.joint(`arm${L}`, torso, side * 0.205, 0.42);
+    const torso = this.bone("torso", hips, 0, 0.06);
+    this.bone("head", torso, 0, 0.6);
+    for (const [s, L] of [[-1, "L"], [1, "R"]] as const) {
+      const arm = this.bone(`arm${L}`, torso, s * ARM_X, 0.42);
       this.shoulders.push(arm);
-      this.joint(`fore${L}`, arm, 0, -0.28);
+      this.bone(`fore${L}`, arm, 0, -0.28);
     }
-  }
-
-  /** Registra uma peça (geometria já posicionada no espaço da articulação). */
-  private p(joint: Joint, g: THREE.BufferGeometry, role: Role, at: Place = {}, fat: FatClass = "none", skin?: SkinId): void {
-    const geo = g.index ? g.toNonIndexed() : g;
-    geo.deleteAttribute("uv");
-    _e.set(at.rx ?? 0, at.ry ?? 0, at.rz ?? 0);
-    _q.setFromEuler(_e);
-    _m.compose(_p.set(at.x ?? 0, at.y ?? 0, at.z ?? 0), _q, _s.set(at.sx ?? 1, at.sy ?? 1, at.sz ?? 1));
-    geo.applyMatrix4(_m);
-    this.parts.push({ joint, geo, role, fat, skin });
-  }
-
-  private buildParts(): void {
-    const S = THREE.SphereGeometry, B = THREE.BoxGeometry, Cy = THREE.CylinderGeometry, To = THREE.TorusGeometry;
-    // quadril / short
-    this.p("hips", new Cy(0.15, 0.16, 0.2, 8), "shorts", { y: -0.02, sz: 0.72 }, "pelvis");
-    for (const L of ["L", "R"] as const) {
-      this.p(`thigh${L}`, limbGeo(0.078, 0.06, 0.44), "legs", {}, "limb");
-      this.p(`thigh${L}`, limbGeo(0.088, 0.08, 0.2), "shorts", {}, "limb");
-      this.p(`shin${L}`, new S(0.06, 7, 5), "legs");
-      this.p(`shin${L}`, limbGeo(0.058, 0.04, 0.42), "legs");
-      this.p(`foot${L}`, new B(0.095, 0.07, 0.23), "shoe", { y: -0.025, z: -0.05 });
-      this.p(`foot${L}`, new B(0.1, 0.028, 0.24), "sole", { y: -0.07, z: -0.05 });
-      this.p(`foot${L}`, new B(0.07, 0.02, 0.12), "white", { y: 0.015, z: -0.1 });
-    }
-    // tronco
-    this.p("torso", new Cy(0.19, 0.145, 0.44, 8), "shirt", { y: 0.22, sz: 0.62 }, "torso");
-    this.p("torso", new S(0.13, 9, 7), "shirt", { y: 0.11, z: 0, sx: 1.05, sz: 0.78, sy: 1.0 }, "belly");
-    this.p("torso", new Cy(0.05, 0.055, 0.08, 7), "skin", { y: 0.48 });
-    // cabeça
-    this.p("head", new S(0.115, 10, 8), "skin", { y: 0.02, sx: 0.92, sy: 1.08 });
-    this.p("head", new S(0.122, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), "hair", { y: 0.035, z: 0.008, sx: 0.96, sy: 1.05, sz: 1.04 });
-    this.p("head", new B(0.2, 0.08, 0.06), "hair", { y: -0.005, z: 0.085 });
-    for (const s of [-1, 1]) {
-      this.p("head", new S(0.025, 6, 5), "skin", { x: s * 0.108, y: 0.01 });
-      this.p("head", new S(0.017, 6, 5), "dark", { x: s * 0.04, y: 0.03, z: -0.108 });
-      this.p("head", new B(0.04, 0.008, 0.01), "hair", { x: s * 0.04, y: 0.063, z: -0.108, rz: s * -0.12 });
-    }
-    this.p("head", new THREE.ConeGeometry(0.018, 0.04, 5), "skin", { z: -0.12, rx: -Math.PI / 2 });
-    // braços
-    for (const L of ["L", "R"] as const) {
-      this.p(`arm${L}`, new S(0.056, 8, 6), "shirt");
-      this.p(`arm${L}`, limbGeo(0.052, 0.042, 0.28), "skin", {}, "limb");
-      this.p(`arm${L}`, limbGeo(0.064, 0.058, 0.12), "shirt", {}, "limb");
-      this.p(`fore${L}`, limbGeo(0.042, 0.034, 0.25), "skin");
-      this.p(`fore${L}`, new S(0.042, 7, 5), "skin", { y: -0.28 });
-    }
-    // sensor de glicose (CGM) atrás do braço esquerdo
-    this.p("armL", new Cy(0.03, 0.03, 0.012, 10), "white", { y: -0.17, z: 0.05, rx: Math.PI / 2 }, "limb");
-
-    // ----- acessórios de cada visual -----
-    // Corredor: faixa de cabeça
-    this.p("head", new To(0.112, 0.014, 5, 16), 0xff4f8b, { y: 0.1, rx: Math.PI / 2 }, "none", "corredor");
-    this.p("head", new B(0.03, 0.09, 0.012), 0xff4f8b, { x: 0.02, y: 0.03, z: 0.125, rx: 0.3, rz: 0.3 }, "none", "corredor");
-    // Fone de ouvido
-    this.p("head", new To(0.135, 0.016, 5, 14, Math.PI), 0x2b2250, { y: 0.02 }, "none", "fone");
-    for (const s of [-1, 1]) this.p("head", new Cy(0.048, 0.048, 0.035, 10), 0x5a43c8, { x: s * 0.122, rz: Math.PI / 2 }, "none", "fone");
-    // Mochila de hidratação nas costas (+z, visível para a câmera)
-    this.p("torso", new B(0.26, 0.32, 0.09), 0x18a37a, { y: 0.27, z: 0.14 }, "back", "mochila");
-    this.p("torso", new B(0.16, 0.18, 0.02), 0x7fd0ff, { y: 0.29, z: 0.19 }, "back", "mochila");
-    this.p("torso", new To(0.09, 0.008, 4, 10, Math.PI), 0x2b6f8f, { x: 0.13, y: 0.4, z: 0.12, ry: Math.PI / 2 }, "back", "mochila");
-    for (const s of [-1, 1]) this.p("torso", new B(0.03, 0.36, 0.03), 0x0f5e47, { x: s * 0.1, y: 0.27, z: -0.07 }, "torso", "mochila");
-    // ACS: colete, boné e bolsa de visita
-    this.p("torso", new Cy(0.2, 0.16, 0.38, 8), 0x1f5fa8, { y: 0.24, sz: 0.66 }, "torso", "acs");
-    this.p("head", new S(0.125, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.5), 0x1f5fa8, { y: 0.05 }, "none", "acs");
-    this.p("head", new B(0.17, 0.012, 0.11), 0x1f5fa8, { y: 0.055, z: -0.15 }, "none", "acs");
-    this.p("torso", new B(0.06, 0.16, 0.2), 0x8a5a3b, { x: -0.21, y: 0.02 }, "torso", "acs");
-    this.p("torso", new B(0.025, 0.55, 0.02), 0x8a5a3b, { y: 0.25, z: 0.125, rz: 0.62 }, "back", "acs");
   }
 
   private color(role: Role, out: THREE.Color): THREE.Color {
     if (typeof role === "number") return out.setHex(role);
     const o = OUTFIT[this.skin];
     const map: Record<Exclude<Role, number>, number> = {
-      skin: SKIN_TONE, hair: HAIR, shirt: o.shirt, shorts: o.shorts, shoe: o.shoe, sole: o.sole,
-      legs: o.legs ?? SKIN_TONE, white: 0xf4f6f8, dark: 0x1b1b1f,
+      skin: SKIN_TONE, hair: 0x2b1b1e, hairLight: 0x6a4630, shirt: o.shirt, vest: o.vest ?? o.shirt, shorts: o.shorts, band: o.band,
+      shoe: o.shoe, sole: o.sole, legs: o.legs ?? SKIN_TONE, white: 0xf4f6f8, dark: 0x1b1b1f,
     };
     return out.setHex(map[role]);
-  }
-
-  /** Junta as peças de cada articulação (por classe de engordar) numa malha só. */
-  private rebuild(): void {
-    for (const r of this.meshes) { r.mesh.removeFromParent(); r.mesh.geometry.dispose(); }
-    this.meshes = [];
-    const groups = new Map<string, Part[]>();
-    for (const part of this.parts) {
-      if (part.skin && part.skin !== this.skin) continue;
-      const k = `${part.joint}|${part.fat}`;
-      (groups.get(k) ?? groups.set(k, []).get(k)!).push(part);
-    }
-    const c = new THREE.Color();
-    for (const [k, list] of groups) {
-      const geo = mergeGeometries(list.map((x) => x.geo))!;
-      const col = new Float32Array(geo.attributes.position.count * 3);
-      const ranges: { start: number; count: number; role: Role }[] = [];
-      let start = 0;
-      for (const part of list) {
-        const n = part.geo.attributes.position.count;
-        this.color(part.role, c);
-        for (let i = start; i < start + n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
-        ranges.push({ start, count: n, role: part.role });
-        start += n;
-      }
-      geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-      const mesh = new THREE.Mesh(geo, MAT);
-      const [joint, fat] = k.split("|") as [Joint, FatClass];
-      this.j[joint].add(mesh);
-      this.meshes.push({ mesh, fat, ranges });
-    }
-    this.shirtTint = -1;
-    this.setFat(this.fatNow);
   }
 
   setSkin(skin: SkinId): void {
     this.skin = skin;
     this.label.visible = skin === "acs";
-    this.rebuild();
+    if (this.mesh) { this.mesh.removeFromParent(); this.mesh.geometry.dispose(); }
+    const { geo, roles, shade } = assemble(this.parts.filter((p) => !p.skin || p.skin === skin), (r, c) => this.color(r, c));
+    this.shade = shade;
+    const shirt = this.color("shirt", new THREE.Color()), vest = this.color("vest", new THREE.Color());
+    this.tinted = [];
+    roles.forEach((r, i) => { if (r === "shirt" || r === "vest") this.tinted.push({ i, base: r === "shirt" ? shirt : vest }); });
+    const mesh = new THREE.SkinnedMesh(geo, MAT);
+    mesh.frustumCulled = false;
+    this.root.add(mesh);
+    mesh.bind(this.skeleton, new THREE.Matrix4());
+    this.mesh = mesh;
+    this.shirtTint = -1;
+    this.setFat(this.fatNow);
   }
 
-  /** fat: 0 = bem condicionado, 1 = sedentário. Muda a largura de forma suave. */
+  /** fat: 0 = bem condicionado, 1 = sedentário. O corpo muda de forma suave. */
   setFat(fat: number): void {
     this.fatNow = fat;
-    for (const r of this.meshes) {
-      const [x, z, y] = FAT[r.fat];
-      r.mesh.scale.set(1 + x * fat, 1 + y * fat, 1 + z * fat);
-      // mochila e alças das costas acompanham a barriga/peito sem deformar
-      r.mesh.position.z = r.fat === "back" ? 0.06 * fat : 0;
-    }
-    this.shoulders.forEach((s, i) => (s.position.x = (i ? 1 : -1) * 0.205 * (1 + 0.22 * fat)));
-    this.hipJoints.forEach((h, i) => (h.position.x = (i ? 1 : -1) * 0.09 * (1 + 0.25 * fat)));
-    this.label.position.z = 0.135 + 0.065 * fat;
+    if (this.mesh?.morphTargetInfluences) this.mesh.morphTargetInfluences[0] = fat;
+    this.shoulders.forEach((s, i) => (s.position.x = (i ? 1 : -1) * ARM_X * (1 + 0.16 * fat)));
+    this.hipJoints.forEach((h, i) => (h.position.x = (i ? 1 : -1) * 0.09 * (1 + 0.22 * fat)));
+    this.label.position.z = 0.124 + 0.036 * fat;
   }
 
   /** Camisa avermelhada na hiperglicemia (como no original). Só reescreve as cores quando mudam. */
   private tintShirt(amount: number): void {
     const q = Math.round(amount * 20) / 20;
-    if (q === this.shirtTint) return;
+    if (q === this.shirtTint || !this.mesh) return;
     this.shirtTint = q;
-    const c = new THREE.Color(OUTFIT[this.skin].shirt).lerp(HYPER_SHIRT, q);
-    for (const r of this.meshes) {
-      let touched = false;
-      const col = r.mesh.geometry.attributes.color as THREE.BufferAttribute;
-      for (const g of r.ranges) {
-        if (g.role !== "shirt") continue;
-        for (let i = g.start; i < g.start + g.count; i++) col.setXYZ(i, c.r, c.g, c.b);
-        touched = true;
-      }
-      if (touched) col.needsUpdate = true;
+    const col = this.mesh.geometry.attributes.color as THREE.BufferAttribute;
+    const c = new THREE.Color();
+    for (const { i, base } of this.tinted) {
+      c.copy(base).lerp(HYPER_SHIRT, q).multiplyScalar(this.shade[i]);
+      col.setXYZ(i, c.r, c.g, c.b);
     }
+    col.needsUpdate = true;
   }
 
   /** Reações curtas por cima do movimento. */
