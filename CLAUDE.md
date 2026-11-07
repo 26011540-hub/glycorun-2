@@ -19,7 +19,7 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
 - Arco da UEPG (`src/render/landmarks.ts`): nos dias múltiplos de 5, com nome em letras próprias, sem o logo oficial.
   O endereço com `?arco` faz ele aparecer ~10 s após o início (atalho para apresentações).
 - Dr. Bruce (`src/render/bruce.ts`): homenagem ao golden da professora, de jaleco e estetoscópio. Aos 250 m atravessa a
-  rua da direita para a esquerda, para e late (espera o quiz fechar). Só cenário. O endereço com `?bruce` faz a cena acontecer logo no início.
+  rua da direita para a esquerda, para virado para a rua e late (espera o quiz fechar). Só cenário. O endereço com `?bruce` faz a cena acontecer logo no início.
 - Cachorros (`src/render/dogs.ts`) são só cenário: sempre na calçada, sem colisão e sem efeito nas regras. Corpo feito de anéis, com manchas por face; patas, rabo e cabeça se movem na placa de vídeo.
 
 ## Arquitetura (manter separado)

@@ -351,7 +351,7 @@ export class World3D {
   /** Dr. Bruce atravessa a rua à frente do jogador, num trecho livre da calçada. */
   startBruce(s: GameState): void {
     this.bruceDone = true;
-    this.bruce.start(Math.floor((s.dist + 62) / 20) * 20 + 12.2, s.dist, s.runSpeed);
+    this.bruce.start(Math.floor((s.dist + 72) / 20) * 20 + 12.2, s.dist, s.runSpeed);
   }
 
   /** O arco nasce logo depois do trecho já visível, para o campus aparecer inteiro. */
