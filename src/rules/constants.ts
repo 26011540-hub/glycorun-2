@@ -23,6 +23,8 @@ export const HIT_LANE = 0.5;
 // Altura mínima para passar por cima de cada obstáculo.
 export const CLEAR_SOFA_Y = 0.7;
 export const CLEAR_PILHA_Y = 2.3;
+// Acima desta altura o item passa por baixo do jogador (mesma altura de pular o sofá).
+export const COLLECT_MAX_Y = 0.7;
 
 export const HIT_INVULNERABLE = 1.6;
 export const OBSTACLE_CHANCE = 0.42;

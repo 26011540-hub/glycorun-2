@@ -63,8 +63,12 @@ export class Symptoms {
   get active(): boolean { return this.ghost > 0.01 || this.blur > 0.05 || this.warm > 0.01; }
 
   setSize(w: number, h: number, msaa: number): void {
+    if (this.target.samples !== msaa) {
+      // mudar a suavização exige recriar a imagem interna; sem isso o jogo travava ao subir da qualidade baixa
+      this.target.samples = msaa;
+      this.target.dispose();
+    }
     this.target.setSize(w, h);
-    this.target.samples = msaa;
     (this.mat.uniforms.px.value as THREE.Vector2).set(1 / w, 1 / h);
   }
 

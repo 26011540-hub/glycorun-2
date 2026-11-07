@@ -260,6 +260,8 @@ function tick(s: GameState, dt: number, rng: Rng): void {
     if (o.kind === "item" && item(o.type).k === "ex" && o.z < -0.6 && !o.counted) { o.counted = true; s.exMiss++; }
     if (Math.abs(o.z) > K.HIT_Z || Math.abs(o.lx - s.px) > K.HIT_LANE) continue;
     if (o.kind === "item") {
+      // pulou por cima: não pega (se ainda estiver ao alcance ao descer, pega); o ímã puxa até no ar
+      if (s.y > K.COLLECT_MAX_Y && !o.magnet) continue;
       o.done = true;
       collect(s, o);
     } else if (!clears(s, o.type as ObstacleType)) {

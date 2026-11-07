@@ -65,6 +65,40 @@ describe("corredor", () => {
     expect(b.lives).toBe(3);
   });
 
+  it("pular por cima não pega o item; correr e deslizar pegam", () => {
+    const pass = (before: (s: GameState) => void, type = "maca") => {
+      const s = createGame(false);
+      s.nextRow = 1e9;
+      s.objs.push({ id: 999, kind: "item", type, lx: 0, z: 6, y0: 0, done: false });
+      let acted = false;
+      for (let i = 0; i < 90; i++) {
+        const o = s.objs.find((x) => x.id === 999);
+        if (!acted && o && o.z < 3.2) { before(s); acted = true; }
+        step(s, 1 / 60, rng);
+      }
+      return s;
+    };
+    expect(pass((s) => act(s, "U")).score).toBeLessThan(40); // só os pontos de correr
+    expect(pass(() => {}).score).toBeGreaterThan(50);
+    expect(pass((s) => act(s, "D")).score).toBeGreaterThan(50);
+    expect(pass((s) => act(s, "U"), "bike").exMiss).toBe(1); // exercício pulado conta como perdido
+  });
+
+  it("item puxado pelo ímã é pego mesmo no ar", () => {
+    const s = createGame(false);
+    s.nextRow = 1e9;
+    s.magnet = 10;
+    s.objs.push({ id: 999, kind: "item", type: "maca", lx: 1, z: 8, y0: 0, done: false });
+    let acted = false;
+    for (let i = 0; i < 90; i++) {
+      const o = s.objs.find((x) => x.id === 999);
+      if (!acted && o && o.z < 3.2) { act(s, "U"); acted = true; }
+      step(s, 1 / 60, rng);
+    }
+    expect(s.objs.some((x) => x.id === 999)).toBe(false);
+    expect(s.score).toBeGreaterThan(50);
+  });
+
   it("três batidas encerram a corrida", () => {
     const s = createGame(false);
     for (let k = 0; k < 3; k++) { s.inv = 0; runInto(s, "pilha", () => {}); }
