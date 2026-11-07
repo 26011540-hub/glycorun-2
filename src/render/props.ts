@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { Builder, Prefab } from "./builder";
 
 /**
@@ -11,29 +12,76 @@ const DOORS = [0x6b4a33, 0x2f5d7a, 0x8e3b2f, 0x3c6b48];
 const GLASS = 0x9fd3ee;
 const WHITE = 0xf6f4ee;
 const TILE = 0xb5523b;
+const IRON = 0x30363f;
+
+const _c = new THREE.Color();
+/** Escurece (f<1) ou clareia (f>1) uma cor. */
+const tone = (hex: number, f: number) => _c.setHex(hex).multiplyScalar(f).getHex();
+
+/** Janela com moldura, peitoril e grade. Fica na fachada que olha para -x. */
+function window3(b: Builder, x: number, y: number, z: number, w = 1.15, h = 1.0, bars = true): void {
+  b.box(0.08, h, w, WHITE, { x: x + 0.02, y, z });
+  b.box(0.06, h - 0.18, w - 0.2, GLASS, { x, y, z, glow: true });
+  b.box(0.16, 0.07, w + 0.14, WHITE, { x: x - 0.03, y: y - h / 2 - 0.03, z });
+  if (bars) for (let k = -1; k <= 1; k++) b.box(0.03, h - 0.14, 0.03, IRON, { x: x - 0.04, y, z: z + k * (w / 4) });
+}
 
 function house(i: number): Builder {
   const b = new Builder();
   const wall = WALLS[i % WALLS.length], door = DOORS[i % DOORS.length];
-  const w = 4.2, h = 2.7, d = 6;
-  b.box(w, h, d, wall, { x: w / 2 + 1.2, y: h / 2 });
-  b.box(w + 0.3, 0.15, d + 0.3, WHITE, { x: w / 2 + 1.2, y: h }); // beiral
-  b.roof(w + 0.6, 1.3, d + 0.6, TILE, { x: w / 2 + 1.2, y: h + 0.07 });
-  // fachada
-  b.box(0.06, 1.95, 0.95, door, { x: 1.17, y: 0.98, z: -0.6 });
-  for (const z of [1.5, -2.3]) {
-    b.box(0.08, 1.0, 1.15, WHITE, { x: 1.18, y: 1.55, z });
-    b.box(0.06, 0.82, 0.95, GLASS, { x: 1.16, y: 1.55, z, glow: true });
+  const w = 4.2, h = 2.7, d = 6, cx = w / 2 + 1.2;
+  b.box(w, h, d, wall, { x: cx, y: h / 2 });
+  b.box(w + 0.05, 0.34, d + 0.05, tone(wall, 0.72), { x: cx, y: 0.17, flat: true }); // rodapé
+  b.box(w + 0.3, 0.15, d + 0.3, WHITE, { x: cx, y: h, flat: true }); // beiral
+  // telhado de duas águas com fileiras de telhas
+  const rw = w + 0.6, rh = 1.3, half = rw / 2, slope = Math.atan2(rh, half), run = Math.hypot(half, rh);
+  b.roof(rw, rh, d + 0.6, TILE, { x: cx, y: h + 0.07 });
+  for (const s of [-1, 1]) {
+    for (let k = 0; k < 5; k++) {
+      const t = (k + 0.5) / 5;
+      b.box(run / 5 + 0.03, 0.06, d + 0.62, tone(TILE, k % 2 ? 0.86 : 1.1), { x: cx + s * half * t, y: h + 0.1 + rh * (1 - t), rz: -s * slope, flat: true });
+    }
   }
+  b.box(0.2, 0.1, d + 0.68, tone(TILE, 0.7), { x: cx, y: h + 0.07 + rh + 0.02, flat: true }); // cumeeira
+  // fachada
+  b.box(0.08, 2.08, 1.08, WHITE, { x: 1.19, y: 1.04, z: -0.6 });
+  b.box(0.06, 1.95, 0.92, door, { x: 1.16, y: 0.98, z: -0.6 });
+  b.ball(0.035, 0xe8b21c, { x: 1.12, y: 1.0, z: -0.25 }, 0);
+  b.box(0.5, 0.1, 1.2, tone(wall, 0.6), { x: 0.95, y: 0.05, z: -0.6, flat: true }); // degrau
+  window3(b, 1.16, 1.55, 1.5);
+  window3(b, 1.16, 1.55, -2.3);
   // lateral que vem na direção da câmera
   b.box(1.3, 0.9, 0.06, GLASS, { x: 3.3, y: 1.6, z: d / 2 + 0.01, glow: true });
+  b.box(1.42, 1.02, 0.03, WHITE, { x: 3.3, y: 1.6, z: d / 2 });
   // muro baixo com portão (bem brasileiro)
   const muro = WALLS[(i + 3) % WALLS.length];
   b.box(0.18, 1.1, 2.4, muro, { x: 0, y: 0.55, z: 1.8 });
   b.box(0.18, 1.1, 1.6, muro, { x: 0, y: 0.55, z: -2.2 });
-  for (let k = 0; k < 6; k++) b.box(0.04, 1.2, 0.04, 0x30363f, { x: 0, y: 0.6, z: 0.4 - k * 0.2 }); // portão
-  b.box(0.2, 0.06, 0.06, 0x30363f, { x: 0, y: 1.15, z: -0.1, sz: 20 });
-  b.box(1.2, 0.02, d, 0x8fbf6a, { x: 0.6, y: 0.01 }); // quintal
+  b.box(0.24, 0.07, 2.46, WHITE, { x: 0, y: 1.13, z: 1.8, flat: true });
+  b.box(0.24, 0.07, 1.66, WHITE, { x: 0, y: 1.13, z: -2.2, flat: true });
+  for (let k = 0; k < 6; k++) b.box(0.04, 1.2, 0.04, IRON, { x: 0, y: 0.6, z: 0.4 - k * 0.2 }); // portão
+  b.box(0.2, 0.06, 1.2, IRON, { x: 0, y: 1.15, z: -0.1, flat: true });
+  b.box(0.1, 0.22, 0.3, 0xd8d2c4, { x: -0.11, y: 0.8, z: 1.05 }); // caixa de correio
+  if (i % 3 === 0) {
+    // grafite colorido no muro
+    b.box(0.03, 0.55, 0.9, 0xe2483d, { x: -0.1, y: 0.5, z: 2.2, rx: 0.2, flat: true });
+    b.box(0.03, 0.4, 0.8, 0x2f7fe0, { x: -0.11, y: 0.62, z: 1.7, rx: -0.3, flat: true });
+    b.box(0.03, 0.22, 0.7, 0xf2c230, { x: -0.12, y: 0.42, z: 2.0, rx: 0.1, flat: true });
+  }
+  if (i % 2 === 0) {
+    // antena no telhado
+    b.cyl(0.018, 0.018, 1.0, 4, IRON, { x: cx + 0.6, y: h + 1.4, z: 1.5 });
+    for (let k = 0; k < 3; k++) b.box(0.03, 0.03, 0.5 - k * 0.1, IRON, { x: cx + 0.6, y: h + 1.65 + k * 0.14, z: 1.5, flat: true });
+  } else {
+    b.box(0.3, 0.55, 0.75, 0xdedede, { x: 1.1, y: 2.2, z: 1.5 - 1.5, rz: 0, flat: true }); // ar-condicionado
+    b.box(0.5, 0.42, 0.32, tone(TILE, 0.8), { x: cx + 0.8, y: h + 1.05, z: -1.4 }); // chaminé
+  }
+  b.box(1.2, 0.02, d, 0x8fbf6a, { x: 0.6, y: 0.01, flat: true }); // quintal
+  for (const [z, c] of [[1.0, 0xe2483d], [2.4, 0xf2c230], [-1.9, 0xe86fa8]] as const) {
+    b.cyl(0.13, 0.1, 0.2, 7, 0xa8583a, { x: 0.65, y: 0.11, z });
+    b.ball(0.18, 0x3f9a49, { x: 0.65, y: 0.32, z }, 0);
+    b.ball(0.06, c, { x: 0.6, y: 0.43, z: z + 0.05 }, 0);
+  }
   return b;
 }
 
@@ -42,20 +90,22 @@ function sobrado(i: number): Builder {
   const wall = WALLS[(i + 2) % WALLS.length];
   const w = 4.4, h = 5.2, d = 6.2;
   b.box(w, h, d, wall, { x: w / 2 + 0.6, y: h / 2 });
-  b.box(w + 0.2, 0.25, d + 0.2, WHITE, { x: w / 2 + 0.6, y: h + 0.1 }); // laje
+  b.box(w + 0.05, 0.34, d + 0.05, tone(wall, 0.72), { x: w / 2 + 0.6, y: 0.17, flat: true });
+  b.box(w + 0.04, 0.1, d + 0.04, tone(wall, 0.85), { x: w / 2 + 0.6, y: 2.62, flat: true }); // faixa entre andares
+  b.box(w + 0.2, 0.25, d + 0.2, WHITE, { x: w / 2 + 0.6, y: h + 0.1, flat: true }); // laje
   // caixa-d'água azul na laje
   b.cyl(0.55, 0.5, 0.8, 10, 0x2f7fc6, { x: w / 2 + 1.2, y: h + 0.62, z: 1.2 });
   b.cyl(0.58, 0.58, 0.08, 10, 0x2566a3, { x: w / 2 + 1.2, y: h + 1.05, z: 1.2 });
   // portas e janelas
   b.box(0.06, 2.0, 2.2, 0x5b6470, { x: 0.57, y: 1.0, z: 1.2 }); // garagem
+  for (let k = 0; k < 6; k++) b.box(0.03, 0.04, 2.2, 0x47505c, { x: 0.53, y: 0.25 + k * 0.32, z: 1.2, flat: true });
   b.box(0.06, 1.9, 0.9, DOORS[i % DOORS.length], { x: 0.57, y: 0.95, z: -1.6 });
-  for (const z of [1.5, -1.5]) {
-    b.box(0.08, 1.0, 1.3, WHITE, { x: 0.58, y: 3.6, z });
-    b.box(0.06, 0.85, 1.12, GLASS, { x: 0.56, y: 3.6, z, glow: true });
-  }
-  // sacada
-  b.box(0.7, 0.1, 2.6, WHITE, { x: 0.25, y: 2.75, z: 0 });
-  b.box(0.05, 0.6, 2.6, 0x30363f, { x: -0.08, y: 3.05, z: 0 });
+  window3(b, 0.56, 3.6, 1.5, 1.3, 1.0, false);
+  window3(b, 0.56, 3.6, -1.5, 1.3, 1.0, false);
+  // sacada com guarda-corpo
+  b.box(0.7, 0.1, 2.6, WHITE, { x: 0.25, y: 2.75, z: 0, flat: true });
+  b.box(0.04, 0.05, 2.6, IRON, { x: -0.08, y: 3.32, z: 0, flat: true });
+  for (let k = 0; k < 9; k++) b.box(0.03, 0.56, 0.03, IRON, { x: -0.08, y: 3.05, z: -1.2 + k * 0.3 });
   b.box(1.6, 0.9, 0.06, GLASS, { x: 2.8, y: 3.6, z: d / 2 + 0.01, glow: true });
   return b;
 }
@@ -66,17 +116,18 @@ function predio(i: number): Builder {
   const floors = 5 + (i % 4) * 2, fh = 2.6, w = 6, d = 9;
   const h = floors * fh;
   b.box(w, h, d, wall, { x: w / 2 + 1.5, y: h / 2 });
-  b.box(w + 0.3, 0.4, d + 0.3, WHITE, { x: w / 2 + 1.5, y: h + 0.2 });
+  b.box(w + 0.3, 0.4, d + 0.3, WHITE, { x: w / 2 + 1.5, y: h + 0.2, flat: true });
+  b.box(1.6, 1.1, 2.2, 0xcfc8ba, { x: w / 2 + 1.8, y: h + 0.95 }); // casa de máquinas
   for (let f = 1; f < floors; f++) {
     const y = f * fh + 1.2;
     for (const z of [-3, 0, 3]) {
       b.box(0.06, 1.1, 1.6, GLASS, { x: 1.47, y, z, glow: true });
-      b.box(0.8, 0.08, 2.0, WHITE, { x: 1.1, y: y - 0.7, z }); // varandinha
+      b.box(0.8, 0.08, 2.0, WHITE, { x: 1.1, y: y - 0.7, z, flat: true }); // varandinha
     }
     b.box(2.0, 1.1, 0.06, GLASS, { x: 4.5, y, z: d / 2 + 0.01, glow: true });
   }
   b.box(0.06, 2.2, 3, 0x5f7f99, { x: 1.47, y: 1.1, z: 0, glow: true }); // portaria
-  b.box(1.2, 0.15, 4, WHITE, { x: 0.9, y: 2.4, z: 0 });
+  b.box(1.2, 0.15, 4, WHITE, { x: 0.9, y: 2.4, z: 0, flat: true });
   return b;
 }
 
@@ -88,7 +139,9 @@ function ipe(color: number): Builder {
   for (const [x, y, z, r] of [[0, 2.9, 0, 0.95], [0.7, 2.6, 0.2, 0.7], [-0.6, 2.7, -0.2, 0.75], [0.1, 3.4, 0.3, 0.6], [-0.2, 2.5, 0.6, 0.55]]) {
     b.ball(r, color, { x, y, z }, 0);
   }
-  b.cyl(0.6, 0.6, 0.02, 8, 0x6b5a3a, { y: 0.01 }); // canteiro
+  // flores caídas no canteiro
+  b.cyl(0.6, 0.6, 0.02, 8, 0x6b5a3a, { y: 0.01, flat: true });
+  for (let k = 0; k < 6; k++) b.box(0.09, 0.02, 0.09, color, { x: Math.cos(k * 2.1) * 0.42, y: 0.03, z: Math.sin(k * 2.1) * 0.42, flat: true });
   return b;
 }
 
@@ -97,6 +150,26 @@ function mangueira(): Builder {
   b.cyl(0.18, 0.25, 1.8, 6, 0x5e4026, { y: 0.9 });
   for (const [x, y, z, r] of [[0, 2.6, 0, 1.4], [0.9, 2.2, 0.3, 0.9], [-0.9, 2.3, -0.2, 1.0], [0.2, 3.3, -0.3, 0.9]]) b.ball(r, 0x3f8f3a, { x, y, z }, 0);
   for (const [x, y, z] of [[0.8, 1.8, -0.6], [-0.7, 1.9, 0.7], [0.3, 1.7, 0.9]]) b.ball(0.12, 0xf2a83a, { x, y, z }, 0);
+  return b;
+}
+
+/** Araucária, árvore-símbolo do Paraná: tronco alto e copa em forma de taça. */
+function araucaria(i: number): Builder {
+  const b = new Builder();
+  const H = 6.5 + (i % 2) * 1.5;
+  b.cyl(0.1, 0.24, H, 7, 0x5a4230, { y: H / 2 });
+  const green = [0x2f6b3f, 0x38794a];
+  for (let ring = 0; ring < 3; ring++) {
+    const y = H - 1.5 + ring * 0.75, n = 8 - ring, len = 2.3 - ring * 0.45;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + ring * 0.4;
+      const dx = Math.cos(a), dz = Math.sin(a);
+      b.cyl(0.03, 0.06, len, 4, 0x5a4230, { x: dx * len * 0.42, y: y + len * 0.24, z: dz * len * 0.42, rz: -dx * 1.1, rx: dz * 1.1 });
+      // ponta da galha virada para cima
+      b.ball(0.46, green[(k + ring) % 2], { x: dx * len * 0.82, y: y + len * 0.5, z: dz * len * 0.82, sy: 0.5 }, 0);
+    }
+  }
+  b.ball(0.5, green[0], { y: H + 0.5, sy: 0.55 }, 0);
   return b;
 }
 
@@ -111,7 +184,7 @@ function coqueiro(i: number): Builder {
   }
   for (let k = 0; k < 7; k++) {
     const a = (k / 7) * Math.PI * 2;
-    b.box(1.9, 0.04, 0.38, k % 2 ? 0x3e9a4a : 0x4bb35a, { x: x + Math.cos(a) * 0.85, y: y - 0.25, z: Math.sin(a) * 0.85, ry: -a, rz: -0.45 });
+    b.box(1.9, 0.04, 0.38, k % 2 ? 0x3e9a4a : 0x4bb35a, { x: x + Math.cos(a) * 0.85, y: y - 0.25, z: Math.sin(a) * 0.85, ry: -a, rz: -0.45, flat: true });
   }
   for (let k = 0; k < 3; k++) b.ball(0.13, 0x6b4a2a, { x: x + Math.cos(k * 2) * 0.18, y: y - 0.2, z: Math.sin(k * 2) * 0.18 }, 0);
   return b;
@@ -120,16 +193,33 @@ function coqueiro(i: number): Builder {
 function poste(): Builder {
   const b = new Builder();
   b.cyl(0.07, 0.09, 4.6, 6, 0x4a5462, { y: 2.3 });
-  b.box(1.2, 0.07, 0.07, 0x4a5462, { x: -0.55, y: 4.55 });
-  b.box(0.42, 0.14, 0.24, 0x30363f, { x: -1.1, y: 4.5 });
+  b.box(1.2, 0.07, 0.07, 0x4a5462, { x: -0.55, y: 4.55, flat: true });
+  b.box(0.42, 0.14, 0.24, IRON, { x: -1.1, y: 4.5, flat: true });
   b.box(0.34, 0.05, 0.18, 0xfff3c4, { x: -1.1, y: 4.41, glow: true });
+  b.box(0.06, 0.06, 0.9, 0x5b6470, { y: 5.0, flat: true }); // cruzeta da fiação
+  b.cyl(0.03, 0.03, 0.6, 4, 0x4a5462, { y: 4.85 });
+  return b;
+}
+
+/** Fios entre dois postes, com a barriga típica da fiação brasileira. Vão de 20 unidades ao longo de z. */
+function fios(): Builder {
+  const b = new Builder();
+  const n = 8;
+  for (const [dz, sag, y0] of [[-0.4, 0.5, 5.02], [0.4, 0.42, 5.02], [0, 0.65, 4.8]] as const) {
+    for (let k = 0; k < n; k++) {
+      const t0 = k / n, t1 = (k + 1) / n;
+      const f = (t: number) => y0 - sag * 4 * t * (1 - t);
+      const ya = f(t0), yb = f(t1), len = 20 / n;
+      b.box(0.016, 0.016, Math.hypot(len, yb - ya) + 0.02, 0x23262c, { x: dz, y: (ya + yb) / 2, z: -10 + (t0 + t1) * 10, rx: Math.atan2(ya - yb, len), flat: true });
+    }
+  }
   return b;
 }
 
 function banco(): Builder {
   const b = new Builder();
-  for (const y of [0.45, 0.75, 0.9]) b.box(0.42, 0.06, 1.8, 0x9a6a3c, { x: y > 0.5 ? 0.25 : 0, y, rz: y > 0.5 ? -0.15 : 0 });
-  for (const z of [-0.75, 0.75]) b.box(0.42, 0.45, 0.07, 0x30363f, { y: 0.22, z });
+  for (const y of [0.45, 0.75, 0.9]) b.box(0.42, 0.06, 1.8, 0x9a6a3c, { x: y > 0.5 ? 0.25 : 0, y, rz: y > 0.5 ? -0.15 : 0, flat: true });
+  for (const z of [-0.75, 0.75]) b.box(0.42, 0.45, 0.07, IRON, { y: 0.22, z });
   return b;
 }
 
@@ -137,8 +227,11 @@ function barraca(i: number): Builder {
   const b = new Builder();
   const stripes = [[0x2f7fe0, WHITE], [0xf08a3c, WHITE], [0x2fa866, 0xf4d58d], [0xe2483d, WHITE]][i % 4];
   for (const [x, z] of [[0, -1.4], [0, 1.4], [1.8, -1.4], [1.8, 1.4]]) b.cyl(0.04, 0.04, 2.3, 5, 0x8a8f99, { x, y: 1.15, z });
-  // lona listrada inclinada
-  for (let k = 0; k < 6; k++) b.box(2.2, 0.05, 0.5, stripes[k % 2], { x: 0.9, y: 2.35, z: -1.25 + k * 0.5, rz: 0.18 });
+  // lona listrada inclinada, com franja
+  for (let k = 0; k < 6; k++) {
+    b.box(2.2, 0.05, 0.5, stripes[k % 2], { x: 0.9, y: 2.35, z: -1.25 + k * 0.5, rz: 0.18, flat: true });
+    b.box(0.04, 0.2, 0.5, stripes[k % 2], { x: -0.18, y: 2.05, z: -1.25 + k * 0.5, flat: true });
+  }
   b.box(1.4, 0.8, 2.8, 0xb88a5a, { x: 0.9, y: 0.4 }); // bancada
   // caixotes de frutas e verduras
   const fruits = [0xe2483d, 0xf2a83a, 0x5aa83a, 0xf4d03a, 0x8e3b8f, 0xf08a3c];
@@ -148,7 +241,10 @@ function barraca(i: number): Builder {
     const c = fruits[(i + k) % fruits.length];
     for (let f = 0; f < 4; f++) b.ball(0.11, c, { x: 0.45 + (f % 2) * 0.2, y: 1.04, z: z - 0.12 + Math.floor(f / 2) * 0.24 }, 0);
   }
-  b.box(0.06, 0.4, 1.2, WHITE, { x: -0.05, y: 1.95, z: 0, glow: true }); // plaquinha de preço
+  b.box(0.06, 0.4, 1.2, WHITE, { x: -0.05, y: 1.75, z: 0, glow: true }); // plaquinha de preço
+  // cachos de banana pendurados
+  b.cyl(0.015, 0.015, 0.4, 3, 0x6e4a2e, { x: 0.15, y: 1.95, z: 1.1 });
+  for (let k = 0; k < 4; k++) b.box(0.07, 0.3, 0.07, 0xf4d03a, { x: 0.15 + Math.cos(k * 1.6) * 0.08, y: 1.65, z: 1.1 + Math.sin(k * 1.6) * 0.08, rz: 0.15 });
   return b;
 }
 
@@ -162,7 +258,7 @@ function caixotes(): Builder {
 function quiosque(): Builder {
   const b = new Builder();
   b.cyl(1.3, 1.3, 1.1, 6, WHITE, { x: 1.4, y: 0.55 });
-  b.cyl(1.35, 1.35, 0.1, 6, 0x2f7fe0, { x: 1.4, y: 1.12 });
+  b.cyl(1.35, 1.35, 0.1, 6, 0x2f7fe0, { x: 1.4, y: 1.12, flat: true });
   for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; b.cyl(0.04, 0.04, 1.3, 4, 0x8a8f99, { x: 1.4 + Math.cos(a) * 1.15, y: 1.8, z: Math.sin(a) * 1.15 }); }
   b.cone(2.0, 1.0, 6, 0xd9b26a, { x: 1.4, y: 2.95 });
   b.box(0.06, 0.35, 1.4, 0xf2c230, { x: 0.15, y: 2.2, glow: true });
@@ -175,15 +271,15 @@ function guardaSol(i: number): Builder {
   b.cyl(0.03, 0.03, 2.1, 4, 0xdedede, { y: 1.05, rz: 0.1 });
   b.cone(1.1, 0.5, 8, c1, { x: 0.2, y: 2.2 });
   b.cone(0.6, 0.3, 8, c2, { x: 0.2, y: 2.36 });
-  b.box(0.5, 0.06, 1.2, c2, { x: 0.8, y: 0.25, rz: 0.3 }); // cadeira de praia
-  b.box(0.5, 0.06, 0.8, c1, { x: 0.8, y: 0.5, z: 0.5, rx: 0.8 });
+  b.box(0.5, 0.06, 1.2, c2, { x: 0.8, y: 0.25, rz: 0.3, flat: true }); // cadeira de praia
+  b.box(0.5, 0.06, 0.8, c1, { x: 0.8, y: 0.5, z: 0.5, rx: 0.8, flat: true });
   return b;
 }
 
 function cerca(): Builder {
   const b = new Builder();
   for (let k = 0; k < 7; k++) b.box(0.08, 0.8, 0.08, WHITE, { y: 0.4, z: -9 + k * 3 });
-  for (const y of [0.35, 0.7]) b.box(0.05, 0.08, 20, WHITE, { y });
+  for (const y of [0.35, 0.7]) b.box(0.05, 0.08, 20, WHITE, { y, flat: true });
   return b;
 }
 
@@ -191,27 +287,183 @@ function pontoOnibus(): Builder {
   const b = new Builder();
   b.box(0.1, 2.4, 0.1, 0x5b6470, { x: 1.1, y: 1.2, z: -1.4 });
   b.box(0.1, 2.4, 0.1, 0x5b6470, { x: 1.1, y: 1.2, z: 1.4 });
-  b.box(1.4, 0.08, 3.2, 0x2fa866, { x: 0.6, y: 2.4 });
+  b.box(1.4, 0.08, 3.2, 0x2fa866, { x: 0.6, y: 2.4, flat: true });
   b.box(0.05, 1.6, 3.0, GLASS, { x: 1.15, y: 1.3, glow: true });
-  b.box(0.4, 0.06, 2.6, 0x9a6a3c, { x: 0.9, y: 0.5 });
+  b.box(0.4, 0.06, 2.6, 0x9a6a3c, { x: 0.9, y: 0.5, flat: true });
   return b;
 }
 
 function lixeira(): Builder {
   const b = new Builder();
   b.cyl(0.22, 0.18, 0.7, 8, 0xf08a3c, { y: 0.35 });
-  b.cyl(0.24, 0.24, 0.06, 8, 0x30363f, { y: 0.72 });
+  b.cyl(0.24, 0.24, 0.06, 8, IRON, { y: 0.72, flat: true });
+  return b;
+}
+
+/** Orelhão: telefone público com concha azul. */
+function orelhao(): Builder {
+  const b = new Builder();
+  b.cyl(0.05, 0.06, 2.0, 6, 0x5b6470, { y: 1.0 });
+  b.sphere(0.62, 10, 6, 0x2f7fc6, { x: -0.25, y: 1.72, sy: 1.1, sx: 0.85 });
+  b.box(0.1, 0.34, 0.2, IRON, { x: -0.2, y: 1.42 });
+  b.box(0.06, 0.05, 0.22, 0x1b1b1f, { x: -0.28, y: 1.6, flat: true });
+  return b;
+}
+
+function banca(): Builder {
+  const b = new Builder();
+  const green = 0x2f8a55;
+  b.box(1.8, 2.3, 3.0, green, { x: 0.9, y: 1.15 });
+  b.box(1.95, 0.14, 3.15, tone(green, 0.75), { x: 0.9, y: 2.36, flat: true });
+  b.box(0.8, 0.06, 3.0, 0xf2c230, { x: -0.3, y: 2.2, rz: -0.28, flat: true }); // toldo
+  b.box(0.05, 1.3, 2.6, 0xe9e2d0, { x: -0.01, y: 1.2, glow: true });
+  // revistas penduradas
+  const covers = [0xe2483d, 0x2f7fe0, 0xf2c230, 0xe86fa8, 0x2fa866, 0x8a5cd6];
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 6; k++) b.box(0.03, 0.36, 0.3, covers[(r * 2 + k) % 6], { x: -0.05, y: 0.75 + r * 0.42, z: -1.1 + k * 0.44, flat: true });
+  return b;
+}
+
+function carrinhoPipoca(): Builder {
+  const b = new Builder();
+  const red = 0xd8352a;
+  b.box(1.0, 0.75, 0.7, red, { y: 0.72 });
+  b.box(1.0, 0.1, 0.72, WHITE, { y: 1.12, flat: true });
+  b.box(0.9, 0.6, 0.6, 0xfff3c4, { y: 1.47, glow: true });
+  b.box(1.04, 0.09, 0.74, red, { y: 1.81, flat: true });
+  for (let k = 0; k < 10; k++) b.ball(0.07, 0xfff8e0, { x: -0.3 + (k % 5) * 0.15, y: 1.27 + Math.floor(k / 5) * 0.1, z: -0.1 + (k % 2) * 0.2 }, 0);
+  for (const z of [-0.42, 0.42]) b.torus(0.26, 0.04, 4, 10, IRON, { y: 0.28, z, ry: 0 });
+  b.cyl(0.02, 0.02, 1.0, 4, 0xdedede, { x: 0.3, y: 2.3 });
+  b.cone(0.95, 0.4, 8, 0xf2c230, { x: 0.3, y: 2.72 });
+  return b;
+}
+
+function carrinhoCoco(): Builder {
+  const b = new Builder();
+  b.box(1.5, 0.3, 0.9, 0x9a6a3c, { y: 0.75 });
+  for (const z of [-0.5, 0.5]) b.torus(0.32, 0.04, 4, 10, IRON, { y: 0.32, z });
+  for (let k = 0; k < 11; k++) b.ball(0.17, k % 3 ? 0x5fa33f : 0x4f8f34, { x: -0.5 + (k % 4) * 0.33, y: 1.02 + Math.floor(k / 4) * 0.2, z: -0.25 + (k % 3) * 0.25, sy: 1.15 }, 0);
+  b.cyl(0.03, 0.03, 1.5, 4, 0xdedede, { x: 0.6, y: 1.5 });
+  b.cone(0.85, 0.35, 8, 0x2fa866, { x: 0.6, y: 2.4 });
+  return b;
+}
+
+/** Perua antiga genérica, duas cores. Comprimento ao longo de z. */
+function perua(i: number): Builder {
+  const b = new Builder();
+  const main = [0xf3eee2, 0xf2c230, 0x8ec6d8][i % 3], top = [0x2f7fc6, 0xf3eee2, 0xf3eee2][i % 3];
+  b.box(1.5, 0.8, 3.5, main, { y: 0.72 });
+  b.box(1.46, 0.7, 3.3, top, { y: 1.44 });
+  b.box(1.5, 0.1, 3.5, WHITE, { y: 1.12, flat: true });
+  for (const x of [-0.76, 0.76]) for (let k = 0; k < 4; k++) b.box(0.03, 0.46, 0.68, GLASS, { x, y: 1.46, z: -1.15 + k * 0.78, glow: true });
+  b.box(1.28, 0.5, 0.04, GLASS, { y: 1.48, z: 1.67, glow: true });
+  for (const x of [-0.75, 0.75]) for (const z of [-1.1, 1.1]) b.cyl(0.3, 0.3, 0.22, 10, 0x1e2024, { x, y: 0.3, z, rz: Math.PI / 2 });
+  b.box(1.56, 0.12, 0.08, 0xc9ced6, { y: 0.42, z: 1.78, flat: true });
+  return b;
+}
+
+/** Carro popular antigo, de teto arredondado. */
+function carroAntigo(i: number): Builder {
+  const b = new Builder();
+  const c = [0xd8352a, 0x2fa866, 0xf2a83a, 0x7ab7e0][i % 4];
+  b.box(1.45, 0.55, 3.2, c, { y: 0.58 });
+  b.sphere(0.82, 12, 6, c, { y: 0.84, z: -0.12, sz: 1.5, sy: 0.72 });
+  b.box(1.32, 0.34, 0.03, GLASS, { y: 1.14, z: 0.86, rx: -0.35, glow: true });
+  for (const x of [-0.72, 0.72]) {
+    b.box(0.03, 0.3, 1.5, GLASS, { x, y: 1.12, z: -0.14, glow: true });
+    for (const z of [-1.0, 1.0]) b.cyl(0.29, 0.29, 0.2, 10, 0x1e2024, { x, y: 0.29, z, rz: Math.PI / 2 });
+  }
+  for (const z of [-1.62, 1.62]) b.box(1.5, 0.1, 0.08, 0xc9ced6, { y: 0.4, z, flat: true });
+  return b;
+}
+
+/** Bandeirinhas de festa cruzando a rua (lá no alto, sem atrapalhar). */
+function bandeirinhas(): Builder {
+  const b = new Builder();
+  const cols = [0xe2483d, 0xf2c230, 0x2fa866, 0x2f7fe0, 0xe86fa8];
+  const span = 13, n = 22;
+  for (const dz of [-1.2, 1.2]) {
+    for (let k = 0; k < n; k++) {
+      const t = (k + 0.5) / n, x = -span / 2 + t * span, y = 4.7 - 0.55 * 4 * t * (1 - t);
+      b.cone(0.17, 0.34, 3, cols[(k + (dz > 0 ? 2 : 0)) % 5], { x, y: y - 0.2, z: dz, rx: Math.PI, sz: 0.2, flat: true });
+      b.box(span / n + 0.02, 0.015, 0.015, IRON, { x, y, z: dz, flat: true });
+    }
+  }
+  return b;
+}
+
+/** Pipa no céu do bairro. */
+function pipa(i: number): Builder {
+  const b = new Builder();
+  const [c1, c2] = [[0xe2483d, 0xf2c230], [0x2f7fe0, WHITE], [0x2fa866, 0xf2a83a]][i % 3];
+  const y = 11 + i * 1.5;
+  b.cone(0.5, 0.75, 4, c1, { y: y + 0.32, sz: 0.06, flat: true });
+  b.cone(0.5, 0.75, 4, c2, { y: y - 0.42, rx: Math.PI, sz: 0.06, flat: true });
+  for (let k = 0; k < 7; k++) b.box(0.05, 0.28, 0.02, k % 2 ? c1 : c2, { x: Math.sin(k) * 0.14, y: y - 0.9 - k * 0.26, rz: Math.sin(k) * 0.4, flat: true });
+  return b;
+}
+
+function varal(): Builder {
+  const b = new Builder();
+  for (const z of [-1.5, 1.5]) b.box(0.06, 1.9, 0.06, 0x8a8f99, { y: 0.95, z });
+  b.box(0.015, 0.015, 3, 0xdedede, { y: 1.85, flat: true });
+  const clothes = [0xe2483d, WHITE, 0x2f7fe0, 0xf2c230, 0xe86fa8];
+  for (let k = 0; k < 5; k++) b.box(0.03, 0.55 + (k % 2) * 0.2, 0.42, clothes[k], { y: 1.55 - (k % 2) * 0.1, z: -1.1 + k * 0.55, flat: true });
+  return b;
+}
+
+/** Unidade Básica de Saúde genérica, sem logotipos. O nome "UBS" é uma placa à parte (textura). */
+function ubs(): Builder {
+  const b = new Builder();
+  const w = 6, d = 11, h = 3.3;
+  b.box(w, h, d, 0xf3f1ea, { x: w / 2 + 0.8, y: h / 2 });
+  b.box(w + 0.04, 0.34, d + 0.04, 0x8d98a3, { x: w / 2 + 0.8, y: 0.17, flat: true });
+  b.box(w + 0.05, 0.5, d + 0.05, 0x2f7fc6, { x: w / 2 + 0.8, y: h - 0.42, flat: true });
+  b.box(w + 0.4, 0.2, d + 0.4, WHITE, { x: w / 2 + 0.8, y: h + 0.1, flat: true });
+  for (const z of [-3.8, -1.9, 1.9, 3.8]) window3(b, 0.76, 1.55, z, 1.4, 1.1, false);
+  b.box(0.06, 2.2, 2.0, GLASS, { x: 0.76, y: 1.1, glow: true }); // entrada
+  b.box(1.5, 0.12, 3.0, 0x2f7fc6, { x: 0.1, y: 2.4, flat: true }); // marquise
+  for (const z of [-1.3, 1.3]) b.box(0.08, 2.4, 0.08, WHITE, { x: -0.5, y: 1.2, z });
+  b.box(1.0, 0.1, 4.0, 0xc9c2b5, { x: 0.3, y: 0.05, flat: true });
+  return b;
+}
+
+// ---- detalhes da rua (planos finos sobre o asfalto) ----
+function faixaPedestre(): Builder {
+  const b = new Builder();
+  for (let k = 0; k < 11; k++) b.box(0.34, 0.012, 2.1, 0xf3eee2, { x: -3.0 + k * 0.6, y: 0.008, flat: true });
+  return b;
+}
+function remendo(i: number): Builder {
+  const b = new Builder();
+  const g = i ? 0x4c535f : 0x666d7b;
+  b.box(1.1 + i * 0.5, 0.008, 1.6 - i * 0.4, g, { y: 0.006, flat: true });
+  b.box(0.7, 0.008, 0.7, tone(g, 0.92), { x: 0.4, y: 0.008, z: 0.5, flat: true });
+  return b;
+}
+function bueiro(): Builder {
+  const b = new Builder();
+  b.box(0.62, 0.01, 0.9, 0x3a3f49, { y: 0.008, flat: true });
+  for (let k = 0; k < 5; k++) b.box(0.5, 0.012, 0.06, 0x23262c, { y: 0.012, z: -0.32 + k * 0.16, flat: true });
   return b;
 }
 
 /** Chão ao lado da rua por bioma (calçada é desenhada à parte com textura). */
-function verge(color: number, sea: boolean): Builder {
+function verge(color: number, sea: boolean, seed: number): Builder {
   const b = new Builder();
   if (sea) {
-    b.box(9, 0.04, 20.2, 0xe8d49a, { x: 4.5, y: -0.02 }); // areia
-    b.box(80, 0.04, 20.2, 0x2f8fc9, { x: 49, y: -0.08 }); // mar
-    for (let k = 0; k < 3; k++) b.box(0.25, 0.03, 20.2, WHITE, { x: 9.3 + k * 1.6, y: -0.05 }); // espuma
-  } else b.box(60, 0.04, 20.2, color, { x: 30, y: -0.02 });
+    b.box(9, 0.04, 20.2, 0xe8d49a, { x: 4.5, y: -0.02, flat: true }); // areia
+    b.box(80, 0.04, 20.2, 0x2f8fc9, { x: 49, y: -0.08, flat: true }); // mar
+    for (let k = 0; k < 3; k++) b.box(0.25, 0.03, 20.2, WHITE, { x: 9.3 + k * 1.6, y: -0.05, flat: true }); // espuma
+    b.box(1.6, 0.03, 20.2, 0xd9c384, { x: 8.2, y: -0.012, flat: true }); // areia molhada
+    return b;
+  }
+  b.box(60, 0.04, 20.2, color, { x: 30, y: -0.02, flat: true });
+  // manchas de tom e tufos para o chão não parecer uma cor só
+  for (let k = 0; k < 9; k++) {
+    const x = 2 + ((k * 7 + seed * 3) % 22), z = -9 + ((k * 5 + seed) % 18);
+    b.box(1.6 + (k % 3), 0.01, 1.2 + (k % 2), tone(color, k % 2 ? 0.92 : 1.07), { x, y: 0.003, z, ry: k, flat: true });
+    if (k % 2) b.ball(0.16, tone(color, 0.78), { x: x + 0.5, y: 0.08, z, sy: 0.6 }, 0);
+  }
   return b;
 }
 
@@ -228,8 +480,10 @@ export function buildPrefabs(): Map<PropId, Prefab> {
   put("ipeAmarelo", ipe(0xf2c230));
   put("ipeRoxo", ipe(0xa86fd8));
   put("mangueira", mangueira());
+  for (let i = 0; i < 2; i++) put(`araucaria${i}`, araucaria(i));
   for (let i = 0; i < 2; i++) put(`coqueiro${i}`, coqueiro(i));
   put("poste", poste());
+  put("fios", fios());
   put("banco", banco());
   for (let i = 0; i < 4; i++) put(`barraca${i}`, barraca(i));
   put("caixotes", caixotes());
@@ -238,9 +492,22 @@ export function buildPrefabs(): Map<PropId, Prefab> {
   put("cerca", cerca());
   put("ponto", pontoOnibus());
   put("lixeira", lixeira());
-  put("vergeGrass", verge(0x7cc35a, false));
-  put("vergePark", verge(0x5fb848, false));
-  put("vergePlaza", verge(0xcfc3ad, false));
-  put("vergeSea", verge(0, true));
+  put("orelhao", orelhao());
+  put("banca", banca());
+  put("pipoca", carrinhoPipoca());
+  put("coco", carrinhoCoco());
+  for (let i = 0; i < 3; i++) put(`perua${i}`, perua(i));
+  for (let i = 0; i < 4; i++) put(`carro${i}`, carroAntigo(i));
+  put("bandeirinhas", bandeirinhas());
+  for (let i = 0; i < 3; i++) put(`pipa${i}`, pipa(i));
+  put("varal", varal());
+  put("ubs", ubs());
+  put("faixa", faixaPedestre());
+  for (let i = 0; i < 2; i++) put(`remendo${i}`, remendo(i));
+  put("bueiro", bueiro());
+  put("vergeGrass", verge(0x7cc35a, false, 1));
+  put("vergePark", verge(0x5fb848, false, 2));
+  put("vergePlaza", verge(0xcfc3ad, false, 3));
+  put("vergeSea", verge(0, true, 0));
   return P;
 }

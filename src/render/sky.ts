@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Light } from "../rules/environment";
+import { Builder, seeded } from "./builder";
 
 /** Céu em degradê com sol, lua e estrelas. Acompanha a câmera e não recebe neblina. */
 
@@ -31,6 +32,9 @@ export class Sky {
   private sun: THREE.Sprite;
   private moon: THREE.Sprite;
   private stars: THREE.Points;
+  private clouds: THREE.Mesh;
+  private cloudMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, fog: false, depthWrite: false });
+  private hillMat = new THREE.MeshBasicMaterial({ fog: false, depthWrite: false, side: THREE.DoubleSide });
 
   constructor(radius: number) {
     const dome = new THREE.Mesh(
@@ -50,10 +54,41 @@ export class Sky {
     sg.setAttribute("position", new THREE.BufferAttribute(pts, 3));
     this.stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xfffff0, size: 1.6, sizeAttenuation: false, transparent: true, fog: false, depthWrite: false }));
     this.stars.renderOrder = -9;
-    this.group.add(dome, this.sun, this.moon, this.stars);
+    this.clouds = new THREE.Mesh(this.buildClouds(radius), this.cloudMat);
+    this.clouds.renderOrder = -8;
+    const hills = new THREE.Mesh(this.buildHills(radius), this.hillMat);
+    hills.renderOrder = -8;
+    this.group.add(dome, this.sun, this.moon, this.stars, hills, this.clouds);
     this.radius = radius;
   }
   private radius: number;
+
+  /** Nuvens low-poly em volta do horizonte. */
+  private buildClouds(radius: number): THREE.BufferGeometry {
+    const b = new Builder(), r = seeded(9);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2 + r() * 0.3, d = radius * (0.62 + r() * 0.2), y = radius * (0.09 + r() * 0.1);
+      const x = Math.cos(a) * d, z = Math.sin(a) * d, s = 3 + r() * 3.5;
+      for (let k = 0; k < 5; k++) {
+        b.ball(s * (0.65 + r() * 0.6), 0xffffff, { x: x + (k - 2) * s * 0.95 * -Math.sin(a), y: y + r() * s * 0.4, z: z + (k - 2) * s * 0.95 * Math.cos(a), sy: 0.6, flat: true }, 1);
+      }
+    }
+    return b.build();
+  }
+
+  /** Colinas distantes dos Campos Gerais, em volta de todo o horizonte. */
+  private buildHills(radius: number): THREE.BufferGeometry {
+    const n = 72, R = radius * 0.92, pos: number[] = [];
+    const h = (a: number) => 5 + 3.5 * Math.sin(a * 5 + 1) + 2.2 * Math.sin(a * 11 + 2) + 1.2 * Math.sin(a * 23);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2, c = ((i + 1) / n) * Math.PI * 2;
+      const ax = Math.cos(a) * R, az = Math.sin(a) * R, cx = Math.cos(c) * R, cz = Math.sin(c) * R;
+      pos.push(ax, -6, az, cx, -6, cz, cx, h(c), cz, ax, -6, az, cx, h(c), cz, ax, h(a), az);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    return g;
+  }
 
   update(L: Light, rain: number, camera: THREE.Camera): void {
     this.group.position.copy(camera.position);
@@ -61,6 +96,11 @@ export class Sky {
     u.top.value.copy(TOP.day).lerp(TOP.dusk, L.d * 0.85).lerp(TOP.night, L.n).lerp(RAIN, rain * 0.4 * (1 - L.n));
     u.bottom.value.copy(BOT.day).lerp(BOT.dusk, L.d * 0.85).lerp(BOT.night, L.n).lerp(RAIN, rain * 0.45 * (1 - L.n));
     this.horizon.copy(u.bottom.value);
+    this.hillMat.color.copy(u.bottom.value).lerp(u.top.value, 0.34);
+    // brilho próprio neutro: sem isso, a luz verde refletida do chão tinge a parte de baixo das nuvens
+    this.cloudMat.color.setScalar(0.55 * (1 - rain * 0.35));
+    this.cloudMat.emissive.setScalar((0.5 - L.n * 0.42) * (1 - rain * 0.3));
+    this.clouds.rotation.y += 0.00012; // vento leve
 
     // sol de dia (c < 0,66), lua à noite; atravessam o céu à frente do corredor
     const R = this.radius * 0.9;

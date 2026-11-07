@@ -11,6 +11,7 @@ export interface Place {
   rx?: number; ry?: number; rz?: number;
   sx?: number; sy?: number; sz?: number; s?: number;
   glow?: boolean;
+  flat?: boolean; // sem a sombra pintada (peças finas e chão)
 }
 
 const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), S = new THREE.Vector3(), C = new THREE.Color();
@@ -32,7 +33,15 @@ export class Builder {
     C.setHex(color);
     const n = geo.attributes.position.count;
     const col = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) { col[i * 3] = C.r; col[i * 3 + 1] = C.g; col[i * 3 + 2] = C.b; }
+    // sombra pintada: cada peça escurece suavemente perto da base, como se a luz viesse de cima
+    geo.computeBoundingBox();
+    const y0 = geo.boundingBox!.min.y, h = geo.boundingBox!.max.y - y0;
+    const paint = !p.flat && !p.glow && h > 0.2;
+    const a = geo.attributes.position;
+    for (let i = 0; i < n; i++) {
+      const k = paint ? 0.8 + 0.27 * ((a.getY(i) - y0) / h) : 1;
+      col[i * 3] = C.r * k; col[i * 3 + 1] = C.g * k; col[i * 3 + 2] = C.b * k;
+    }
     geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
     (p.glow ? this.glow : this.base).push(geo);
     return this;

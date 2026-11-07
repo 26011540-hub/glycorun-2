@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { UNITS_PER_METER } from "../rules/constants";
-import { seeded, type Prefab } from "./builder";
+import { seeded, textTexture, type Prefab } from "./builder";
 import { ROAD_W, VIEW_FAR } from "./config";
 import { buildPrefabs } from "./props";
 
@@ -24,13 +24,20 @@ const HALF = ROAD_W / 2;
 const WALK_W = 2.5;
 const VERGE_X = HALF + WALK_W;
 
-interface Placed { id: string; x: number; z: number }
+/** center: posição absoluta (rua), sem espelhar para o lado esquerdo. ry: giro próprio. */
+interface Placed { id: string; x: number; z: number; center?: boolean; ry?: number }
+
+/** Detalhes que somem na qualidade baixa. */
+const DECOR = /^(fios|varal|pipa|bandeirinhas|remendo|bueiro|sombra|caixotes|lixeira)/;
+/** Objetos que ganham sombra suave no chão. */
+const SHADOWED = /^(ipe|mangueira|araucaria|coqueiro|perua|carro|banca|pipoca|coco|orelhao)/;
 
 function walkTexture(biome: Biome): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 128;
   c.height = 256;
   const g = c.getContext("2d")!;
+  const r = seeded(BIOMES.indexOf(biome) + 5);
   if (biome === "orla") {
     // calçadão com ondas em preto e branco
     g.fillStyle = "#f2efe6";
@@ -52,14 +59,25 @@ function walkTexture(biome: Biome): THREE.CanvasTexture {
   } else {
     g.fillStyle = biome === "feira" ? "#d6cbb6" : "#d9d2c4";
     g.fillRect(0, 0, 128, 256);
+    // lajotas com tons levemente diferentes
+    for (let y = 0; y < 256; y += 32) for (let x = 0; x < 128; x += 43) {
+      g.fillStyle = `rgba(${r() < 0.5 ? "255,250,240" : "90,80,70"},${(0.03 + r() * 0.07).toFixed(3)})`;
+      g.fillRect(x, y, 43, 32);
+    }
     g.strokeStyle = biome === "feira" ? "#bfb39c" : "#c4bcad";
     g.lineWidth = 3;
     for (let y = 0; y <= 256; y += 32) { g.beginPath(); g.moveTo(0, y); g.lineTo(128, y); g.stroke(); }
     for (let x = 0; x <= 128; x += 43) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, 256); g.stroke(); }
   }
-  // meio-fio
+  // desgaste e meio-fio
+  for (let k = 0; k < 500; k++) {
+    g.fillStyle = r() < 0.5 ? "rgba(255,255,255,.06)" : "rgba(0,0,0,.05)";
+    g.fillRect(r() * 128, r() * 256, 2, 2);
+  }
   g.fillStyle = "#ecebe6";
   g.fillRect(0, 0, 8, 256);
+  g.fillStyle = "rgba(0,0,0,.14)";
+  g.fillRect(8, 0, 3, 256);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapT = THREE.RepeatWrapping;
@@ -68,13 +86,13 @@ function walkTexture(biome: Biome): THREE.CanvasTexture {
   return t;
 }
 
-function lampPoolTexture(): THREE.CanvasTexture {
+function radialTexture(color: string): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const g = c.getContext("2d")!;
   const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-  r.addColorStop(0, "rgba(255,220,150,1)");
-  r.addColorStop(1, "rgba(255,220,150,0)");
+  r.addColorStop(0, `rgba(${color},1)`);
+  r.addColorStop(1, `rgba(${color},0)`);
   g.fillStyle = r;
   g.fillRect(0, 0, 64, 64);
   return new THREE.CanvasTexture(c);
@@ -86,30 +104,54 @@ function layout(biome: Biome, side: -1 | 1, i: number): Placed[] {
   const pick = <T>(a: readonly T[]) => a[Math.floor(r() * a.length)];
   const out: Placed[] = [];
   const trees = ["ipeRosa", "ipeAmarelo", "ipeRoxo", "mangueira"];
-  const lamp = () => out.push({ id: "poste", x: HALF + 0.35, z: 10 });
+  const lamp = () => {
+    out.push({ id: "poste", x: HALF + 0.35, z: 10 }, { id: "fios", x: HALF + 0.35, z: 20 });
+  };
+  const street = () => {
+    // detalhes do asfalto, uma vez por bloco
+    if (side < 0) return;
+    if (i % 5 === 2) out.push({ id: "faixa", x: 0, z: 6, center: true });
+    if (r() < 0.55) out.push({ id: `remendo${Math.floor(r() * 2)}`, x: (r() - 0.5) * 5, z: r() * 20, center: true, ry: r() < 0.5 ? 0 : Math.PI / 2 });
+    if (r() < 0.4) out.push({ id: "bueiro", x: (r() < 0.5 ? -1 : 1) * (HALF - 0.45), z: r() * 20, center: true });
+  };
   switch (biome) {
-    case "bairro":
-      for (const z of [4, 14]) out.push({ id: r() < 0.3 ? `sobrado${Math.floor(r() * 4)}` : `casa${Math.floor(r() * 6)}`, x: VERGE_X + 0.3, z });
-      out.push({ id: pick(trees), x: HALF + 1.7, z: r() < 0.5 ? 1 : 18 });
-      if (r() < 0.25) out.push({ id: "lixeira", x: HALF + 2.1, z: 6.5 });
-      if (r() < 0.15) out.push({ id: "ponto", x: HALF + 0.6, z: 18 });
+    case "bairro": {
+      const hasUbs = i % 23 === 7 && side > 0;
+      if (hasUbs) out.push({ id: "ubs", x: VERGE_X + 0.3, z: 10 });
+      else for (const z of [4, 14]) out.push({ id: r() < 0.3 ? `sobrado${Math.floor(r() * 4)}` : `casa${Math.floor(r() * 6)}`, x: VERGE_X + 0.3, z });
+      out.push({ id: r() < 0.16 ? `araucaria${Math.floor(r() * 2)}` : pick(trees), x: HALF + 1.7, z: r() < 0.5 ? 1 : 18 });
+      const extra = r();
+      if (extra < 0.12) out.push({ id: "orelhao", x: HALF + 2.0, z: 6.5 });
+      else if (extra < 0.22) out.push({ id: "banca", x: HALF + 0.55, z: 15 });
+      else if (extra < 0.36) out.push({ id: `carro${Math.floor(r() * 4)}`, x: HALF + 1.35, z: 6 });
+      else if (extra < 0.44) out.push({ id: `perua${Math.floor(r() * 3)}`, x: HALF + 1.35, z: 6 });
+      else if (extra < 0.56) out.push({ id: "ponto", x: HALF + 0.6, z: 15 });
+      else if (extra < 0.72) out.push({ id: "lixeira", x: HALF + 2.1, z: 6.5 });
+      if (!hasUbs && r() < 0.3) out.push({ id: "varal", x: VERGE_X + 7, z: 9 });
+      if (r() < 0.14) out.push({ id: `pipa${Math.floor(r() * 3)}`, x: VERGE_X + r() * 6, z: r() * 20 });
       lamp();
       break;
+    }
     case "feira":
       for (const z of [3, 9.5, 16]) out.push({ id: `barraca${Math.floor(r() * 4)}`, x: HALF + 0.3, z });
       out.push({ id: "caixotes", x: VERGE_X + 0.4, z: 6.5 + r() * 6 });
       out.push({ id: `casa${Math.floor(r() * 6)}`, x: VERGE_X + 3, z: 12 });
+      if (r() < 0.3) out.push({ id: r() < 0.5 ? "pipoca" : `carro${Math.floor(r() * 4)}`, x: VERGE_X + 1.3, z: 2 });
+      if (side > 0 && i % 4 === 1) out.push({ id: "bandeirinhas", x: 0, z: 13, center: true });
       lamp();
       break;
     case "parque":
       out.push({ id: "cerca", x: VERGE_X + 0.2, z: 10 });
-      for (let k = 0; k < 4; k++) out.push({ id: pick(trees), x: VERGE_X + 1.5 + r() * 10, z: r() * 20 });
+      for (let k = 0; k < 4; k++) out.push({ id: r() < 0.3 ? `araucaria${Math.floor(r() * 2)}` : pick(trees), x: VERGE_X + 1.5 + r() * 10, z: r() * 20 });
       if (r() < 0.6) out.push({ id: "banco", x: HALF + 1.9, z: 5 });
+      if (r() < 0.22) out.push({ id: "pipoca", x: HALF + 1.5, z: 15 });
+      if (r() < 0.2) out.push({ id: `pipa${Math.floor(r() * 3)}`, x: VERGE_X + 6, z: r() * 20 });
       lamp();
       break;
     case "orla":
       out.push({ id: `coqueiro${Math.floor(r() * 2)}`, x: HALF + 1.8, z: 4 });
       out.push({ id: `coqueiro${Math.floor(r() * 2)}`, x: HALF + 1.8, z: 14 });
+      if (r() < 0.3) out.push({ id: "coco", x: HALF + 1.5, z: 9 });
       if (side > 0) {
         for (let k = 0; k < 2; k++) out.push({ id: `guardaSol${Math.floor(r() * 3)}`, x: VERGE_X + 1.5 + r() * 5, z: r() * 20 });
         if (r() < 0.35) out.push({ id: "quiosque", x: VERGE_X + 0.3, z: 10 });
@@ -119,6 +161,7 @@ function layout(biome: Biome, side: -1 | 1, i: number): Placed[] {
       lamp();
       break;
   }
+  street();
   return out;
 }
 
@@ -129,65 +172,85 @@ const VERGE: Record<Biome, [string, string]> = {
   orla: ["vergePlaza", "vergeSea"], // [esquerda, direita]
 };
 
+interface Handle { kind: Instances; slot: number }
+
 /**
  * Um tipo de objeto do cenário desenhado de uma vez para todas as cópias (InstancedMesh).
- * Cópias livres ficam com escala zero (não aparecem).
+ * Só as cópias em uso são desenhadas: ao remover uma, a última ocupa o lugar dela.
  */
 class Instances {
   mesh: THREE.InstancedMesh;
-  private free: number[] = [];
-  private static ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+  private owners: Handle[] = [];
   private static M = new THREE.Matrix4();
   private static Q = new THREE.Quaternion();
   private static Y = new THREE.Vector3(0, 1, 0);
   private static P = new THREE.Vector3();
   private static S = new THREE.Vector3(1, 1, 1);
 
-  constructor(private geo: THREE.BufferGeometry, private mat: THREE.Material | THREE.Material[], private parent: THREE.Object3D, cap = 24) {
-    this.mesh = this.create(cap);
+  constructor(private geo: THREE.BufferGeometry, private mat: THREE.Material | THREE.Material[], private parent: THREE.Object3D, private cap = 16) {
+    this.mesh = this.create();
   }
-  private create(cap: number): THREE.InstancedMesh {
-    const m = new THREE.InstancedMesh(this.geo, this.mat, cap);
+  private create(): THREE.InstancedMesh {
+    const m = new THREE.InstancedMesh(this.geo, this.mat, this.cap);
     m.frustumCulled = false;
+    m.count = 0;
+    m.visible = false;
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    for (let i = cap - 1; i >= 0; i--) { m.setMatrixAt(i, Instances.ZERO); this.free.push(i); }
     this.parent.add(m);
     return m;
   }
-  add(x: number, z: number, ry: number): number {
-    if (!this.free.length) {
+  add(x: number, z: number, ry: number): Handle {
+    const n = this.owners.length;
+    if (n === this.cap) {
       // cresce: dobra a capacidade e copia o que já existe
-      const old = this.mesh, cap = old.count;
-      this.free = [];
-      this.mesh = this.create(cap * 2);
-      this.free = this.free.filter((i) => i >= cap);
-      for (let i = 0; i < cap; i++) { old.getMatrixAt(i, Instances.M); this.mesh.setMatrixAt(i, Instances.M); }
+      const old = this.mesh;
+      this.cap *= 2;
+      this.mesh = this.create();
+      for (let i = 0; i < n; i++) { old.getMatrixAt(i, Instances.M); this.mesh.setMatrixAt(i, Instances.M); }
       old.removeFromParent();
       old.dispose();
     }
-    const slot = this.free.pop()!;
     Instances.Q.setFromAxisAngle(Instances.Y, ry);
     Instances.M.compose(Instances.P.set(x, 0, z), Instances.Q, Instances.S);
-    this.mesh.setMatrixAt(slot, Instances.M);
-    this.mesh.instanceMatrix.needsUpdate = true;
-    return slot;
+    this.mesh.setMatrixAt(n, Instances.M);
+    const h: Handle = { kind: this, slot: n };
+    this.owners.push(h);
+    this.sync();
+    return h;
   }
-  remove(slot: number): void {
-    this.mesh.setMatrixAt(slot, Instances.ZERO);
+  remove(h: Handle): void {
+    const last = this.owners.length - 1;
+    if (h.slot !== last) {
+      this.mesh.getMatrixAt(last, Instances.M);
+      this.mesh.setMatrixAt(h.slot, Instances.M);
+      this.owners[h.slot] = this.owners[last];
+      this.owners[h.slot].slot = h.slot;
+    }
+    this.owners.pop();
+    this.sync();
+  }
+  private sync(): void {
+    this.mesh.count = this.owners.length;
+    this.mesh.visible = this.owners.length > 0;
     this.mesh.instanceMatrix.needsUpdate = true;
-    this.free.push(slot);
   }
 }
 
 export class Scenery {
   readonly group = new THREE.Group();
+  /** Falso na qualidade baixa: pula os detalhes menores. */
+  rich = true;
   private prefabs = buildPrefabs();
   private kinds = new Map<string, Instances>();
-  private chunks = new Map<number, { kind: Instances; slot: number }[]>();
+  private chunks = new Map<number, Handle[]>();
   private walkMats: Record<Biome, THREE.MeshLambertMaterial>;
   private walkGeo = new THREE.BoxGeometry(WALK_W, 0.14, CHUNK);
-  private poolMat = new THREE.MeshBasicMaterial({ map: lampPoolTexture(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 });
+  private poolMat = new THREE.MeshBasicMaterial({ map: radialTexture("255,220,150"), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 });
   private poolGeo = new THREE.PlaneGeometry(4.5, 4.5).rotateX(-Math.PI / 2);
+  private shadowMat = new THREE.MeshBasicMaterial({ map: radialTexture("20,28,40"), transparent: true, depthWrite: false, opacity: 0.32 });
+  private shadowGeo = new THREE.PlaneGeometry(3.4, 3.4).rotateX(-Math.PI / 2).translate(0, 0.09, 0);
+  private signMat = new THREE.MeshBasicMaterial({ map: textTexture("UBS", { w: 256, h: 96, bg: "#ffffff", fg: "#1f5fa8", radius: 10 }) });
+  private signGeo = new THREE.PlaneGeometry(2.4, 0.8).rotateY(-Math.PI / 2).translate(0.74, 2.72, 0);
 
   constructor() {
     this.walkMats = Object.fromEntries(BIOMES.map((b) => [b, new THREE.MeshLambertMaterial({ map: walkTexture(b) })])) as Record<Biome, THREE.MeshLambertMaterial>;
@@ -196,8 +259,10 @@ export class Scenery {
   private kind(id: string): Instances {
     let k = this.kinds.get(id);
     if (k) return k;
-    if (id.startsWith("walk:")) k = new Instances(this.walkGeo, this.walkMats[id.slice(5) as Biome], this.group, 20);
-    else if (id === "lampPool") k = new Instances(this.poolGeo, this.poolMat, this.group, 20);
+    if (id.startsWith("walk:")) k = new Instances(this.walkGeo, this.walkMats[id.slice(5) as Biome], this.group);
+    else if (id === "lampPool") k = new Instances(this.poolGeo, this.poolMat, this.group);
+    else if (id === "sombra") k = new Instances(this.shadowGeo, this.shadowMat, this.group, 32);
+    else if (id === "ubsPlaca") k = new Instances(this.signGeo, this.signMat, this.group, 4);
     else {
       const p = this.prefabs.get(id) as Prefab;
       k = new Instances(p.geo, p.make().material, this.group);
@@ -209,18 +274,21 @@ export class Scenery {
   private spawn(i: number): void {
     const a = i * CHUNK;
     const biome = biomeAt(a + CHUNK / 2);
-    const list: { kind: Instances; slot: number }[] = [];
+    const list: Handle[] = [];
     const put = (id: string, x: number, z: number, ry: number) => {
-      const kind = this.kind(id);
-      list.push({ kind, slot: kind.add(x, -(a + z), ry) });
+      if (!this.rich && DECOR.test(id)) return;
+      list.push(this.kind(id).add(x, -(a + z), ry));
     };
     for (const side of [-1, 1] as const) {
       const ry = side < 0 ? Math.PI : 0;
       put(`walk:${biome}`, side * (HALF + WALK_W / 2), CHUNK / 2, ry);
       put(VERGE[biome][side < 0 ? 0 : 1], side * VERGE_X, CHUNK / 2, ry);
       for (const p of layout(biome, side, i)) {
-        put(p.id, side * p.x, p.z, ry);
+        const x = p.center ? p.x : side * p.x;
+        put(p.id, x, p.z, p.ry ?? (p.center ? 0 : ry));
         if (p.id === "poste") put("lampPool", side * (HALF - 0.6), p.z, 0);
+        if (p.id === "ubs") put("ubsPlaca", x, p.z, ry);
+        if (SHADOWED.test(p.id)) put("sombra", x, p.z, 0);
       }
     }
     this.chunks.set(i, list);
@@ -232,11 +300,12 @@ export class Scenery {
     const first = Math.floor((dist - 16) / CHUNK), last = Math.floor((dist + ahead) / CHUNK);
     for (const [i, list] of this.chunks) {
       if (i < first || i > last) {
-        for (const { kind, slot } of list) kind.remove(slot);
+        for (const h of list) h.kind.remove(h);
         this.chunks.delete(i);
       }
     }
     for (let i = first; i <= last; i++) if (!this.chunks.has(i)) this.spawn(i);
     this.poolMat.opacity = 0.55 * night;
+    this.shadowMat.opacity = 0.32 * (1 - night * 0.7);
   }
 }

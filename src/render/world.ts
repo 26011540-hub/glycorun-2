@@ -33,6 +33,22 @@ function roadTexture(): THREE.CanvasTexture {
     g.fillStyle = Math.random() < 0.5 ? "rgba(255,255,255,.05)" : "rgba(0,0,0,.06)";
     g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
   }
+  // marcas de pneu e trincas
+  for (const lx of [-1, 0, 1]) {
+    const x = ((lx * LANE_W) / ROAD_W + 0.5) * 256;
+    g.fillStyle = "rgba(0,0,0,.05)";
+    g.fillRect(x - 22, 0, 12, 256);
+    g.fillRect(x + 10, 0, 12, 256);
+  }
+  g.strokeStyle = "rgba(25,28,34,.4)";
+  g.lineWidth = 1;
+  for (let i = 0; i < 5; i++) {
+    let x = Math.random() * 256, y = Math.random() * 256;
+    g.beginPath();
+    g.moveTo(x, y);
+    for (let k = 0; k < 6; k++) { x += (Math.random() - 0.5) * 26; y += 6 + Math.random() * 14; g.lineTo(x, y); }
+    g.stroke();
+  }
   g.fillStyle = "#f3eed9";
   for (const lx of [-0.5, 0.5]) {
     const x = ((lx * LANE_W) / ROAD_W + 0.5) * 256;
@@ -243,6 +259,7 @@ export class World3D {
   setQuality(level: Quality): void {
     this.q = QUALITY[level];
     this.particles.density = this.q.particles;
+    this.scenery.rich = level !== "baixa";
     (this.rain.geometry as THREE.BufferGeometry).setDrawRange(0, this.q.rain * 2);
     const fog = this.scene.fog as THREE.Fog;
     fog.far = this.q.viewFar;
