@@ -19,7 +19,7 @@ o endereço "Network" mostrado no terminal (celular e computador no mesmo Wi-Fi)
 - `npm run build` — gera a versão de publicação na pasta `dist/`.
 - `?fps` no fim do endereço mostra quadros por segundo e desenhos por quadro.
 - `?arco` no fim do endereço faz o arco da UEPG aparecer cerca de 10 segundos depois do início (no jogo normal ele aparece no Dia 5).
-- `?bruce` no fim do endereço faz o Dr. Bruce atravessar a rua logo no início (no jogo normal é aos 250 m).
+- `?bruce` no fim do endereço faz o Dr. Bruce atravessar a rua logo no início (no jogo normal é aos 45 m).
 
 ## Publicar grátis no GitHub Pages (uma vez só)
 1. Crie uma conta em https://github.com (se ainda não tiver) e entre nela.

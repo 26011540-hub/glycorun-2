@@ -23,7 +23,7 @@ const TILE = 8; // comprimento de um ciclo das faixas pintadas na rua
 const RAIN_DROPS = 500; // máximo; a qualidade escolhe quantas aparecem
 const DUSK_SUN = new THREE.Color(0xff9a5a);
 const BOSS_TYPES = ["lata", "burger"] as const;
-const BRUCE_AT = 250 * UNITS_PER_METER;
+const BRUCE_AT = 45 * UNITS_PER_METER;
 
 function roadTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
@@ -351,7 +351,9 @@ export class World3D {
   /** Dr. Bruce atravessa a rua à frente do jogador, num trecho livre da calçada. */
   startBruce(s: GameState): void {
     this.bruceDone = true;
-    this.bruce.start(Math.floor((s.dist + 72) / 20) * 20 + 12.2, s.dist, s.runSpeed);
+    const at = Math.floor((s.dist + 72) / 20) * 20 + 12.2;
+    this.dogs.free(at);
+    this.bruce.start(at, s.dist, s.runSpeed);
   }
 
   /** O arco nasce logo depois do trecho já visível, para o campus aparecer inteiro. */
@@ -444,7 +446,7 @@ export class World3D {
     // cenário, rua e prato
     this.scenery.update(s.dist, night, this.q.viewFar);
     this.dogs.update(s.dist, mode === "pause" || mode === "quiz" ? 0 : uiDt, this.q.viewFar, mode === "run");
-    // Dr. Bruce aos 250 m; se o quiz estiver para abrir, ele espera para ninguém perder a cena
+    // Dr. Bruce aos 45 m; se o quiz estiver para abrir, ele espera para ninguém perder a cena
     if (mode === "count" || mode === "menu") { this.bruceDone = false; this.bruce.stop(); }
     if (mode === "run" && !this.bruceDone && s.dist >= BRUCE_AT && s.quizT > 3) this.startBruce(s);
     this.bruce.update(s.dist, mode === "run" ? dt : 0);

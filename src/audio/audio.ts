@@ -150,7 +150,12 @@ export class SoundEngine {
       case "bark":
         for (const t of [0, 0.17]) { this.tone(430, 0.09, "sawtooth", 0.13, t, -180); this.hiss(0.06, 1400, 0.09, t); }
         break;
-      case "barkBig": this.tone(300, 0.16, "sawtooth", 0.2, 0, -130); this.tone(150, 0.14, "square", 0.08); this.hiss(0.09, 900, 0.14); break;
+      case "barkBig": { // latido do Dr. Bruce: mais forte que o resto, direto no volume geral
+        const m = this.master;
+        this.tone(320, 0.18, "sawtooth", 0.62, 0, -150, m); this.tone(160, 0.16, "square", 0.3, 0, -60, m);
+        this.tone(640, 0.08, "sawtooth", 0.18, 0, -250, m); this.hiss(0.1, 900, 0.4, 0, m);
+        break;
+      }
       case "warn": this.tone(880, 0.09, "square", 0.08); this.tone(880, 0.09, "square", 0.08, 0.14); break;
     }
   }

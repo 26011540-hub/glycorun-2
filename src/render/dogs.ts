@@ -432,6 +432,11 @@ export class Dogs {
     return out;
   }
 
+  /** Tira os cachorros do trecho onde o Dr. Bruce vai parar, para ele ficar sozinho em cena. */
+  free(z: number): void {
+    this.chunks.set(Math.floor(z / CHUNK), []);
+  }
+
   update(dist: number, dt: number, ahead: number, running: boolean): void {
     this.group.position.z = dist;
     this.time.value += dt;
