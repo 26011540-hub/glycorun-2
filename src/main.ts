@@ -49,6 +49,7 @@ const canvas = $<HTMLCanvasElement>("game");
 
 const world = new World3D(canvas);
 world.setSkin(skin);
+world.dogs.onBark = () => audio.play("bark");
 const hud = new Hud();
 initGaugeBar();
 buildStaticScreens(TOUCH, skin, (s) => { skin = s; store.setItem("glycorun2-skin", s); world.setSkin(s); sfx("click"); });

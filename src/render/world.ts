@@ -10,6 +10,7 @@ import { Character, type Motion } from "./character";
 import { LANE_W, ROAD_W, VIEW_FAR } from "./config";
 import { buildBoss, buildItemPrefabs, buildObstaclePrefabs, hintMaterial, KIND_COLOR, OBSTACLE_HINT } from "./items3d";
 import { QUALITY, type Quality, type QualitySettings } from "../core/quality";
+import { Dogs } from "./dogs";
 import { Particles } from "./particles";
 import { Symptoms } from "./post";
 import { Scenery } from "./scenery";
@@ -87,6 +88,7 @@ export class World3D {
   private camera = new THREE.PerspectiveCamera(60, 1, 0.1, VIEW_FAR + 25);
   private sky = new Sky(VIEW_FAR + 10);
   private scenery = new Scenery();
+  readonly dogs = new Dogs();
   private roadTex = roadTexture();
   private roadMat = new THREE.MeshLambertMaterial({ map: this.roadTex });
   private hemi = new THREE.HemisphereLight(0xffffff, 0x6b8f5a, 1.5);
@@ -136,7 +138,7 @@ export class World3D {
     const s = this.scene;
     s.fog = new THREE.Fog(0xcdeefc, 60, VIEW_FAR);
     this.sun.position.set(-8, 14, 6);
-    s.add(this.hemi, this.sun, this.sky.group, this.scenery.group, this.particles.points);
+    s.add(this.hemi, this.sun, this.sky.group, this.scenery.group, this.dogs.group, this.particles.points);
 
     // rua: um plano só, com a textura correndo
     const roadLen = VIEW_FAR + 30;
@@ -260,6 +262,7 @@ export class World3D {
     this.q = QUALITY[level];
     this.particles.density = this.q.particles;
     this.scenery.rich = level !== "baixa";
+    this.dogs.rich = level !== "baixa";
     (this.rain.geometry as THREE.BufferGeometry).setDrawRange(0, this.q.rain * 2);
     const fog = this.scene.fog as THREE.Fog;
     fog.far = this.q.viewFar;
@@ -361,6 +364,7 @@ export class World3D {
 
     // cenário, rua e prato
     this.scenery.update(s.dist, night, this.q.viewFar);
+    this.dogs.update(s.dist, mode === "pause" || mode === "quiz" ? 0 : uiDt, this.q.viewFar, mode === "run");
     this.roadTex.offset.y = (s.dist / TILE) % 1;
     this.roadMat.color.setScalar(1 - s.rain * 0.28); // pista molhada fica mais escura
     this.plateTint.visible = !!s.plate && playing;

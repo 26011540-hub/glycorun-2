@@ -12,7 +12,7 @@ export type Sfx =
   | "good" | "water" | "bad" | "fix" | "insulin" | "power" | "ex" | "med" | "plate"
   | "hit" | "shield" | "jump" | "doubleJump" | "land" | "slide" | "lane"
   | "quiz" | "right" | "wrong" | "boss" | "win" | "lose" | "life" | "over"
-  | "tick" | "go" | "click" | "day" | "warn";
+  | "tick" | "go" | "click" | "day" | "warn" | "bark";
 
 // Escala pentatônica de dó (soa alegre e nunca "erra" nota)
 const midi = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
@@ -147,6 +147,9 @@ export class SoundEngine {
       case "go": this.tone(990, 0.3, "square", 0.14); break;
       case "click": this.tone(1200, 0.04, "square", 0.06); break;
       case "day": this.arp([84, 88, 91], 0.1, 0.4, "sine", 0.15); break;
+      case "bark":
+        for (const t of [0, 0.17]) { this.tone(430, 0.09, "sawtooth", 0.13, t, -180); this.hiss(0.06, 1400, 0.09, t); }
+        break;
       case "warn": this.tone(880, 0.09, "square", 0.08); this.tone(880, 0.09, "square", 0.08, 0.14); break;
     }
   }
