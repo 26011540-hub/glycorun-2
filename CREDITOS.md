@@ -16,4 +16,5 @@
 Nenhum recurso externo. Personagem, cenários, itens, obstáculos e chefão foram modelados no próprio código
 (src/render). Efeitos sonoros e música são gerados na hora pelo navegador (src/audio/audio.ts), sem arquivos
 de áudio de terceiros. O arco da UEPG é uma homenagem modelada do zero a partir de uma foto; não usa o logo oficial
-nem a foto em si. Cada recurso externo adicionado será listado aqui com autor, link e licença.
+nem a foto em si. O Dr. Bruce é uma homenagem ao cachorro da professora, modelado no próprio código a partir de
+fotos, que não são usadas no jogo. Cada recurso externo adicionado será listado aqui com autor, link e licença.

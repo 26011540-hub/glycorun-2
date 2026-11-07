@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { item } from "../content/items";
 import type { SkinId } from "../content/texts";
-import { BOSS_DUR } from "../rules/constants";
+import { BOSS_DUR, UNITS_PER_METER } from "../rules/constants";
 import { lightAt } from "../rules/environment";
 import { TARGET_HIGH, TARGET_LOW, zoneOf } from "../rules/glucose";
 import type { GameEvent, GameState, WorldObject } from "../rules/state";
@@ -10,6 +10,7 @@ import { Character, type Motion } from "./character";
 import { LANE_W, ROAD_W, VIEW_FAR } from "./config";
 import { buildBoss, buildItemPrefabs, buildObstaclePrefabs, hintMaterial, KIND_COLOR, OBSTACLE_HINT } from "./items3d";
 import { QUALITY, type Quality, type QualitySettings } from "../core/quality";
+import { Bruce } from "./bruce";
 import { Dogs } from "./dogs";
 import { Particles } from "./particles";
 import { Symptoms } from "./post";
@@ -22,6 +23,7 @@ const TILE = 8; // comprimento de um ciclo das faixas pintadas na rua
 const RAIN_DROPS = 500; // máximo; a qualidade escolhe quantas aparecem
 const DUSK_SUN = new THREE.Color(0xff9a5a);
 const BOSS_TYPES = ["lata", "burger"] as const;
+const BRUCE_AT = 200 * UNITS_PER_METER;
 
 function roadTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
@@ -97,6 +99,8 @@ export class World3D {
   /** Chamado quando o jogador passa sob o arco da UEPG. */
   set onArch(f: () => void) { this.scenery.onArch = f; }
   readonly dogs = new Dogs();
+  readonly bruce = new Bruce();
+  private bruceDone = false;
   private roadTex = roadTexture();
   private roadMat = new THREE.MeshLambertMaterial({ map: this.roadTex });
   private hemi = new THREE.HemisphereLight(0xffffff, 0x6b8f5a, 1.5);
@@ -137,7 +141,7 @@ export class World3D {
   private post = new Symptoms();
   private size = { w: 1, h: 1 };
   /** Câmera de perto (só desenvolvimento). */
-  closeup: { x: number; y: number; z: number; ly?: number } | null = null;
+  closeup: { x: number; y: number; z: number; lx?: number; ly?: number; lz?: number } | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
@@ -147,7 +151,7 @@ export class World3D {
     const s = this.scene;
     s.fog = new THREE.Fog(0xcdeefc, 60, VIEW_FAR);
     this.sun.position.set(-8, 14, 6);
-    s.add(this.hemi, this.sun, this.sky.group, this.scenery.group, this.dogs.group, this.particles.points);
+    s.add(this.hemi, this.sun, this.sky.group, this.scenery.group, this.dogs.group, this.bruce.group, this.particles.points);
 
     // rua: um plano só, com a textura correndo
     const roadLen = VIEW_FAR + 30;
@@ -281,6 +285,8 @@ export class World3D {
       return { pool, obj };
     });
     for (const g of Object.values(this.bosses)) { g.visible = true; g.position.set(0, 3, -30); }
+    this.bruce.group.visible = true;
+    this.bruce.group.position.set(0, 0, -30);
     this.rain.visible = true;
     this.plateTint.visible = true;
     this.quizShield.visible = true;
@@ -291,6 +297,7 @@ export class World3D {
     this.post.render(this.renderer, this.scene, this.camera); // variação usada nos sintomas
     this.renderer.render(this.scene, this.camera); // variação normal
     undoScenery();
+    this.bruce.group.visible = false;
     for (const { pool, obj } of obstacles) pool.release(obj);
   }
 
@@ -339,6 +346,12 @@ export class World3D {
     P.ghost = lo;
     P.blur = Math.max(hi, lo * 0.7);
     P.warm = hi * 0.9;
+  }
+
+  /** Dr. Bruce atravessa a rua à frente do jogador, num trecho livre da calçada. */
+  startBruce(s: GameState): void {
+    this.bruceDone = true;
+    this.bruce.start(Math.floor((s.dist + 62) / 20) * 20 + 12.2, s.dist, s.runSpeed);
   }
 
   /** O arco nasce logo depois do trecho já visível, para o campus aparecer inteiro. */
@@ -431,6 +444,10 @@ export class World3D {
     // cenário, rua e prato
     this.scenery.update(s.dist, night, this.q.viewFar);
     this.dogs.update(s.dist, mode === "pause" || mode === "quiz" ? 0 : uiDt, this.q.viewFar, mode === "run");
+    // Dr. Bruce aos 200 m; se o quiz estiver para abrir, ele espera para ninguém perder a cena
+    if (mode === "count" || mode === "menu") { this.bruceDone = false; this.bruce.stop(); }
+    if (mode === "run" && !this.bruceDone && s.dist >= BRUCE_AT && s.quizT > 3) this.startBruce(s);
+    this.bruce.update(s.dist, mode === "run" ? dt : 0);
     this.roadTex.offset.y = (s.dist / TILE) % 1;
     this.roadMat.color.setScalar(1 - s.rain * 0.28); // pista molhada fica mais escura
     this.plateTint.visible = !!s.plate && playing;
@@ -524,7 +541,7 @@ export class World3D {
     if (this.closeup) {
       // só para conferir o personagem de perto durante o desenvolvimento
       this.camera.position.set(x + this.closeup.x, s.y + this.closeup.y, this.closeup.z);
-      this.camera.lookAt(x, s.y + (this.closeup.ly ?? 0.9), 0);
+      this.camera.lookAt(x + (this.closeup.lx ?? 0), s.y + (this.closeup.ly ?? 0.9), this.closeup.lz ?? 0);
     }
 
     this.sky.update(L, s.rain, this.camera);

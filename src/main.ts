@@ -11,7 +11,7 @@ import { addToBoard, saveBoard, NAME_MAX } from "./rules/scoring";
 import { lightAt } from "./rules/environment";
 import { TARGET_HIGH } from "./rules/glucose";
 import type { Question } from "./content/quiz";
-import { MSG, SKINS, type SkinId } from "./content/texts";
+import { BRUCE_BANNER, MSG, SKINS, type SkinId } from "./content/texts";
 import { World3D, type ViewMode } from "./render/world";
 import { biomeAt, BIOME_NAMES, type Biome } from "./render/scenery";
 import { bindInput } from "./input/input";
@@ -50,6 +50,8 @@ const canvas = $<HTMLCanvasElement>("game");
 const world = new World3D(canvas);
 world.setSkin(skin);
 world.dogs.onBark = () => audio.play("bark");
+world.bruce.onBark = () => audio.play("barkBig");
+world.bruce.onArrive = () => banner(BRUCE_BANNER);
 world.onArch = () => {
   banner("UEPG<small>Universidade Estadual de Ponta Grossa</small>");
   audio.play("win");
@@ -128,7 +130,9 @@ function start() {
 function go() {
   setMode("run");
   toast(state, MSG.start, 3);
-  if (new URLSearchParams(location.search).has("arco")) world.placeArch(state.dist); // atalho para a apresentação
+  const params = new URLSearchParams(location.search);
+  if (params.has("arco")) world.placeArch(state.dist); // atalhos para a apresentação
+  if (params.has("bruce")) world.startBruce(state);
   audio.tempo = 108;
   audio.boss = false;
   audio.setDuck(1);

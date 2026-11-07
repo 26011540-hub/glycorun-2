@@ -12,11 +12,13 @@ import { seeded } from "./builder";
 
 export type Joint =
   | "hips" | "torso" | "head" | "armL" | "armR" | "foreL" | "foreR"
-  | "thighL" | "thighR" | "shinL" | "shinR" | "footL" | "footR";
+  | "thighL" | "thighR" | "shinL" | "shinR" | "footL" | "footR"
+  | "neck" | "jaw" | "tail1" | "tail2"; // só o Dr. Bruce usa estes
 
 export const JOINTS: readonly Joint[] = [
   "hips", "torso", "head", "armL", "armR", "foreL", "foreR", "thighL", "thighR", "shinL", "shinR", "footL", "footR",
 ];
+export const ALL_JOINTS: readonly Joint[] = [...JOINTS, "neck", "jaw", "tail1", "tail2"];
 
 export type Role = "skin" | "hair" | "hairLight" | "shirt" | "vest" | "shorts" | "band" | "shoe" | "sole" | "legs" | "white" | "dark" | number;
 
@@ -48,7 +50,7 @@ export interface Part {
   skin?: string; // só aparece nesse visual
 }
 
-const idx = (j: Joint) => JOINTS.indexOf(j);
+const idx = (j: Joint) => ALL_JOINTS.indexOf(j);
 const newPart = (skin?: string): Part => ({ pos: [], fat: [], bones: [], wts: [], roles: [], shade: [], skin });
 
 interface RP { p: THREE.Vector3; f: THREE.Vector3 }

@@ -47,6 +47,9 @@ export const MSG = {
   overSuffix: " Quanto mais tempo na faixa de 70 a 140 mg/dL, melhor o controle.",
 };
 
+/** Homenagem ao Bruce, cachorro da professora. */
+export const BRUCE_BANNER = "Dr. Bruce<small>de plantão no bairro</small>";
+
 export const INTRO =
   "Corra pela cidade, dia e noite, e mantenha a glicemia na faixa-alvo de 70 a 140 mg/dL. Na faixa verde seus pontos dobram. A cada 30 segundos tem quiz de Mito ou Verdade.";
 
