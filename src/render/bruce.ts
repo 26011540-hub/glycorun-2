@@ -32,14 +32,14 @@ function buildParts(): Part[] {
 
   // ----- tronco, da anca ao peito -----
   const trunk = (add: number, role: Role, tone: number, from: number, to: number) => [
-    zr(0.52, 0.07 + add, 0.07 + add, 0.07 + add, 0.72, role, hips, tone),
-    zr(0.43, 0.155 + add, 0.15 + add, 0.16 + add, 0.69, role, hips, tone),
-    zr(0.3, 0.19 + add, 0.17 + add, 0.2 + add, 0.67, role, hips, tone),
-    zr(0.1, 0.19 + add, 0.165 + add, 0.185 + add, 0.67, role, mix("hips", "torso", 0.4), tone),
-    zr(-0.08, 0.2 + add, 0.175 + add, 0.2 + add, 0.685, role, mix("hips", "torso", 0.75), tone),
-    zr(-0.25, 0.21 + add, 0.185 + add, 0.235 + add, 0.7, role, torso, tone),
-    zr(-0.4, 0.17 + add, 0.17 + add, 0.215 + add, 0.74, role, torso, tone),
-    zr(-0.48, 0.085 + add, 0.115 + add, 0.14 + add, 0.78, role, torso, tone),
+    zr(0.52, 0.075 + add, 0.07 + add, 0.08 + add, 0.73, role, hips, tone),
+    zr(0.45, 0.16 + add, 0.15 + add, 0.17 + add, 0.71, role, hips, tone),
+    zr(0.32, 0.195 + add, 0.17 + add, 0.2 + add, 0.685, role, hips, tone),
+    zr(0.12, 0.178 + add, 0.158 + add, 0.15 + add, 0.685, role, mix("hips", "torso", 0.4), tone),
+    zr(-0.08, 0.19 + add, 0.17 + add, 0.2 + add, 0.685, role, mix("hips", "torso", 0.75), tone),
+    zr(-0.25, 0.212 + add, 0.2 + add, 0.25 + add, 0.7, role, torso, tone),
+    zr(-0.4, 0.178 + add, 0.178 + add, 0.235 + add, 0.74, role, torso, tone),
+    zr(-0.48, 0.09 + add, 0.12 + add, 0.15 + add, 0.78, role, torso, tone),
   ].filter((q) => q.y <= from && q.y >= to);
   P.push(loft(trunk(0, GOLD, 1, 1, -1), { seg: 14, axis: "z", capStart: true, capEnd: true, seed: 2, jitter: 0.02 }));
 
@@ -67,44 +67,44 @@ function buildParts(): Part[] {
     zr(-0.44, 0.145, 0.135, 0.12, 1.04, GOLD, H, 1.02),
     zr(-0.52, 0.172, 0.15, 0.13, 1.04, GOLD, H, 1.03),
     zr(-0.595, 0.158, 0.125, 0.122, 1.03, LIGHT, H),
-    zr(-0.64, 0.112, 0.085, 0.09, 0.992, LIGHT, H, 1.02),
-    zr(-0.695, 0.096, 0.064, 0.066, 0.972, LIGHT, H),
-    zr(-0.74, 0.078, 0.048, 0.044, 0.966, LIGHT, H),
-    zr(-0.765, 0.038, 0.024, 0.022, 0.966, LIGHT, H),
+    zr(-0.635, 0.122, 0.09, 0.098, 0.988, LIGHT, H, 1.02),
+    zr(-0.7, 0.114, 0.074, 0.084, 0.966, LIGHT, H),
+    zr(-0.765, 0.102, 0.062, 0.07, 0.96, LIGHT, H),
+    zr(-0.8, 0.066, 0.042, 0.046, 0.964, LIGHT, H),
   ], { seg: 12, axis: "z", capStart: true, capEnd: true, seed: 5, jitter: 0.012 }));
-  // listra mais clara no meio da testa, como nas fotos
-  P.push(rigid(new Ic(0.05, 1), "head", LIGHT, { y: 1.15, z: -0.55, sx: 0.85, sy: 0.32, sz: 1.5, rx: -0.3 }));
-  P.push(rigid(new Ic(0.036, 1), "head", NOSE, { y: 0.998, z: -0.76, sx: 1.3, sy: 0.85, sz: 0.9 }));
-  P.push(rigid(new B(0.1, 0.03, 0.12), "head", MOUTH, { y: 0.94, z: -0.665 }));
+  P.push(rigid(new Ic(0.04, 1), "head", NOSE, { y: 1.0, z: -0.8, sx: 1.3, sy: 0.82, sz: 0.9 }));
+  P.push(rigid(new B(0.16, 0.03, 0.16), "head", MOUTH, { y: 0.925, z: -0.69 }));
   for (const s of [-1, 1]) {
     // olhos com brilho e sobrancelha clara
     P.push(rigid(new S(0.024, 8, 6), "head", NOSE, { x: s * 0.09, y: 1.078, z: -0.632 }));
     P.push(rigid(new S(0.007, 5, 4), "head", 0xffffff, { x: s * 0.09 - 0.007, y: 1.088, z: -0.654 }));
-    P.push(rigid(new S(0.018, 6, 4), "head", LIGHT, { x: s * 0.092, y: 1.122, z: -0.61, sx: 1.5, sy: 0.6 }));
+    P.push(rigid(new S(0.016, 6, 4), "head", 0xf4e2bd, { x: s * 0.092, y: 1.116, z: -0.606, sx: 1.5, sy: 0.5 }));
     // orelhas caídas
-    P.push(rigid(new Ic(0.1, 1), "head", EAR, { x: s * 0.178, y: 1.0, z: -0.49, sx: 0.36, sy: 1.2, sz: 0.8, rz: s * 0.2 }));
-    P.push(rigid(new Ic(0.04, 1), "head", EAR, { x: s * 0.19, y: 0.905, z: -0.49, sx: 0.6 }));
-    // bochecha fofa
-    P.push(rigid(new Ic(0.06, 1), "head", LIGHT, { x: s * 0.125, y: 0.955, z: -0.56, sy: 0.85 }));
+    P.push(loft([
+      { y: 1.135, x: s * 0.142, z: -0.49, rx: 0.028, rf: 0.07, rb: 0.06, role: EAR, w: H },
+      { y: 1.07, x: s * 0.178, z: -0.5, rx: 0.036, rf: 0.098, rb: 0.085, role: EAR, w: H },
+      { y: 0.985, x: s * 0.195, z: -0.51, rx: 0.03, rf: 0.078, rb: 0.07, role: EAR, w: H },
+      { y: 0.915, x: s * 0.198, z: -0.525, rx: 0.012, rf: 0.026, rb: 0.026, role: EAR, w: H },
+    ], { seg: 8, capStart: true, capEnd: true, seed: 30 + s }));
   }
   // mandíbula e língua (a boca abre ao latir)
   P.push(loft([
-    zr(-0.58, 0.09, 0.025, 0.032, 0.915, LIGHT, one("jaw")),
-    zr(-0.66, 0.08, 0.022, 0.03, 0.91, LIGHT, one("jaw")),
-    zr(-0.725, 0.054, 0.018, 0.022, 0.91, LIGHT, one("jaw")),
+    zr(-0.58, 0.1, 0.025, 0.034, 0.905, LIGHT, one("jaw")),
+    zr(-0.69, 0.096, 0.022, 0.032, 0.9, LIGHT, one("jaw")),
+    zr(-0.77, 0.07, 0.018, 0.024, 0.9, LIGHT, one("jaw")),
   ], { seg: 8, axis: "z", capStart: true, capEnd: true, seed: 6 }));
-  P.push(rigid(new Ic(0.05, 1), "jaw", TONGUE, { y: 0.935, z: -0.68, sx: 1.05, sy: 0.22, sz: 1.3 }));
-  P.push(rigid(new Ic(0.03, 1), "jaw", TONGUE, { y: 0.92, z: -0.74, sx: 1.25, sy: 0.32, sz: 1.2, rx: 0.6 }));
+  P.push(rigid(new Ic(0.05, 1), "jaw", TONGUE, { y: 0.925, z: -0.71, sx: 1.2, sy: 0.22, sz: 1.5 }));
+  P.push(rigid(new Ic(0.03, 1), "jaw", TONGUE, { y: 0.9, z: -0.78, sx: 1.4, sy: 0.32, sz: 1.2, rx: 0.6 }));
 
   // ----- coleira vermelha, plaquinha de osso e estetoscópio -----
   P.push(rigid(new To(0.122, 0.017, 6, 20), "neck", RED, { y: 0.905, z: -0.425, rx: Math.PI / 2 - 0.42 }));
-  for (const dx of [-0.022, 0.022]) P.push(rigid(new S(0.02, 6, 5), "neck", SILVER, { x: 0.075 + dx, y: 0.86, z: -0.6 }));
-  P.push(rigid(new B(0.05, 0.022, 0.014), "neck", SILVER, { x: 0.075, y: 0.86, z: -0.6 }));
+  for (const dx of [-0.022, 0.022]) P.push(rigid(new S(0.02, 6, 5), "neck", SILVER, { x: 0.075 + dx, y: 0.87, z: -0.59 }));
+  P.push(rigid(new B(0.05, 0.022, 0.014), "neck", SILVER, { x: 0.075, y: 0.87, z: -0.59 }));
   P.push(rigid(new To(0.19, 0.011, 5, 22), "neck", TUBE, { y: 0.83, z: -0.42, rx: Math.PI / 2 - 0.42 }));
-  for (const s of [-1, 1]) P.push(rigid(new Cy(0.01, 0.01, 0.15, 5), "torso", TUBE, { x: s * 0.03, y: 0.7, z: -0.615, rz: s * 0.28, rx: 0.1 }));
-  P.push(rigid(new Cy(0.01, 0.01, 0.07, 5), "torso", TUBE, { y: 0.595, z: -0.625 }));
-  P.push(rigid(new Cy(0.046, 0.046, 0.02, 12), "torso", SILVER, { y: 0.55, z: -0.625, rx: Math.PI / 2 }));
-  P.push(rigid(new Cy(0.028, 0.028, 0.024, 10), "torso", 0x8d949e, { y: 0.55, z: -0.635, rx: Math.PI / 2 }));
+  for (const s of [-1, 1]) P.push(rigid(new Cy(0.01, 0.01, 0.17, 5), "torso", TUBE, { x: s * 0.03, y: 0.72, z: -0.645, rz: s * 0.28, rx: 0.1 }));
+  P.push(rigid(new Cy(0.01, 0.01, 0.07, 5), "torso", TUBE, { y: 0.6, z: -0.65 }));
+  P.push(rigid(new Cy(0.046, 0.046, 0.02, 12), "torso", SILVER, { y: 0.555, z: -0.65, rx: Math.PI / 2 }));
+  P.push(rigid(new Cy(0.028, 0.028, 0.024, 10), "torso", 0x8d949e, { y: 0.555, z: -0.66, rx: Math.PI / 2 }));
 
   // ----- patas da frente (manga do jaleco no alto) -----
   for (const [s, L] of [[-1, "L"], [1, "R"]] as const) {
@@ -141,31 +141,28 @@ function buildParts(): Part[] {
     ], { seg: 9, seed: 12 + s }));
     P.push(rigid(new Ic(0.072, 1), ft, LIGHT, { x, y: 0.048, z: 0.41, sy: 0.7, sz: 1.35 }));
     for (let k = -1; k <= 1; k++) P.push(rigid(new S(0.02, 6, 4), ft, 0xefe0c2, { x: x + k * 0.03, y: 0.03, z: 0.33 }));
-    for (let k = 0; k < 4; k++) P.push(rigid(new Ic(0.055, 1), th, k % 2 ? LIGHT : GOLD, { x: x + s * 0.015, y: 0.62 - k * 0.07, z: 0.47, sy: 1.4, sz: 0.7, rx: -0.4 })); // culote
+    for (let k = 0; k < 4; k++) P.push(rigid(new Ic(0.06, 1), th, LIGHT, { x: x + s * 0.01, y: 0.62 - k * 0.075, z: 0.475 + k * 0.008, sy: 1.5, sz: 0.62, rx: -0.3 })); // culote
   }
 
   // ----- rabo fofo e curvado para cima -----
   P.push(loft([
-    zr(0.5, 0.05, 0.05, 0.05, 0.75, GOLD, one("tail1")),
-    zr(0.58, 0.085, 0.085, 0.105, 0.83, GOLD, one("tail1")),
-    zr(0.68, 0.095, 0.095, 0.125, 0.93, LIGHT, mix("tail1", "tail2", 0.5)),
-    zr(0.77, 0.075, 0.075, 0.1, 1.02, LIGHT, one("tail2")),
-    zr(0.84, 0.03, 0.03, 0.03, 1.06, LIGHT, one("tail2")),
-  ], { seg: 10, axis: "z", capStart: true, capEnd: true, seed: 15, jitter: 0.04 }));
-  for (let k = 0; k < 9; k++) {
-    const t = k / 8, j: Joint = t < 0.5 ? "tail1" : "tail2";
-    P.push(rigid(new Ic(0.07 - t * 0.02, 1), j, k % 2 ? LIGHT : 0xfff5e2, { x: (r() - 0.5) * 0.12, y: 0.74 + t * 0.24, z: 0.6 + t * 0.26, sy: 1.5, sx: 0.85, rx: 0.75 }));
-  }
+    zr(0.5, 0.05, 0.05, 0.05, 0.76, GOLD, one("tail1")),
+    zr(0.62, 0.07, 0.07, 0.1, 0.79, GOLD, one("tail1")),
+    zr(0.76, 0.075, 0.068, 0.135, 0.82, GOLD, mix("tail1", "tail2", 0.5)),
+    zr(0.9, 0.06, 0.052, 0.12, 0.86, LIGHT, one("tail2")),
+    zr(1.0, 0.03, 0.03, 0.05, 0.91, LIGHT, one("tail2")),
+  ], { seg: 10, axis: "z", capStart: true, capEnd: true, seed: 15, jitter: 0.05 }));
 
   // ----- pelo: juba sobre a gola do jaleco, nuca e costas -----
-  for (let k = 0; k < 22; k++) {
-    const a = (k / 21) * Math.PI - Math.PI / 2;
-    P.push(rigid(new Ic(0.05 + r() * 0.025, 1), "neck", k % 3 ? LIGHT : GOLD, { x: Math.sin(a) * 0.17 + (r() - 0.5) * 0.03, y: 0.7 + r() * 0.13, z: -0.43 - Math.cos(a) * 0.1, sy: 1.5, sz: 0.7, rz: Math.sin(a) * 0.3 }));
-  }
-  for (let k = 0; k < 10; k++) {
-    const a = (k / 9) * 2.2 - 1.1;
-    P.push(rigid(new Ic(0.05 + r() * 0.015, 1), "torso", LIGHT, { x: Math.sin(a) * 0.13, y: 0.65 - Math.abs(a) * 0.02 + (k % 2) * 0.05, z: -0.535, sy: 1.35, sz: 0.65 }));
-  }
+  P.push(loft([
+    { y: 0.92, z: -0.5, rx: 0.1, rf: 0.04, rb: 0.03, role: LIGHT, w: one("neck") },
+    { y: 0.8, z: -0.54, rx: 0.15, rf: 0.075, rb: 0.05, role: LIGHT, w: mix("torso", "neck", 0.6) },
+    { y: 0.68, z: -0.565, rx: 0.135, rf: 0.085, rb: 0.05, role: LIGHT, w: torso },
+    { y: 0.58, z: -0.56, rx: 0.095, rf: 0.07, rb: 0.05, role: LIGHT, w: torso },
+    { y: 0.5, z: -0.54, rx: 0.045, rf: 0.04, rb: 0.03, role: LIGHT, w: torso },
+    { y: 0.455, z: -0.525, rx: 0.012, rf: 0.012, rb: 0.012, role: LIGHT, w: torso },
+  ], { seg: 12, seed: 18, jitter: 0.07 }));
+  for (const s of [-1, 1]) for (let k = 0; k < 3; k++) tuft("torso", s * (0.075 + k * 0.03), 0.55 + k * 0.05, -0.56, 0.11, 0.035, LIGHT, 0, s * 0.12);
   for (let k = 0; k < 8; k++) tuft("neck", (r() - 0.5) * 0.18, 0.97 - r() * 0.1, -0.35 + r() * 0.05, 0.1, 0.035, DEEP, 0.9, 0);
   for (let k = 0; k < 8; k++) tuft("hips", (r() - 0.5) * 0.32, 0.87, 0.3 + r() * 0.17, 0.1, 0.038, k % 2 ? DEEP : GOLD, 1.35, 0);
   return P;
@@ -176,7 +173,7 @@ const REST: Record<string, [string, number, number, number]> = {
   hips: ["", 0, 0.62, 0.3], torso: ["hips", 0, 0.06, -0.55], neck: ["torso", 0, 0.12, -0.15], head: ["neck", 0, 0.2, -0.1], jaw: ["head", 0, -0.075, -0.1],
   armL: ["torso", -0.135, -0.06, -0.05], armR: ["torso", 0.135, -0.06, -0.05], foreL: ["armL", 0, -0.26, 0], foreR: ["armR", 0, -0.26, 0],
   thighL: ["hips", -0.135, -0.02, 0.03], thighR: ["hips", 0.135, -0.02, 0.03], shinL: ["thighL", 0, -0.26, 0.06], shinR: ["thighR", 0, -0.26, 0.06],
-  footL: ["shinL", 0, -0.2, 0.08], footR: ["shinR", 0, -0.2, 0.08], tail1: ["hips", 0, 0.12, 0.2], tail2: ["tail1", 0, 0.16, 0.17],
+  footL: ["shinL", 0, -0.2, 0.08], footR: ["shinR", 0, -0.2, 0.08], tail1: ["hips", 0, 0.12, 0.2], tail2: ["tail1", 0, 0.07, 0.24],
 };
 
 const SIDE_X = ROAD_W / 2 + 0.65;
@@ -193,12 +190,13 @@ export class Bruce {
   private j = {} as Record<Joint, THREE.Bone>;
   private stage: Stage = "off";
   private at = 0; // posição ao longo da rua
-  private x = -SIDE_X;
+  private x = SIDE_X;
   private t = 0;
   private crossTime = 2.5;
   private phase = 0;
   private barks = 0;
-  private ry = -Math.PI / 2;
+  private ry = Math.PI / 2;
+  private clock = 0;
   private jumpV = 0;
   private jumpY = 0;
 
@@ -215,7 +213,8 @@ export class Bruce {
     }
     this.body.updateMatrixWorld(true);
     const bones = ALL_JOINTS.map((n) => this.j[n] ?? new THREE.Bone());
-    const { geo } = assemble(buildParts(), (role, c) => c.setHex(role as number));
+    const { geo, roles } = assemble(buildParts(), (role, c) => c.setHex(role as number));
+    this.paintCoat(geo, roles);
     const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }));
     mesh.frustumCulled = false;
     this.body.add(mesh);
@@ -229,8 +228,8 @@ export class Bruce {
       tag.rotation.y = (s * Math.PI) / 2;
       this.j.torso.add(tag);
     }
-    this.body.scale.setScalar(1.5);
-    const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.9, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
+    this.body.scale.setScalar(1.3);
+    const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.78, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = 0.09;
     shadow.scale.set(0.8, 1.1, 1);
@@ -238,17 +237,28 @@ export class Bruce {
     this.group.visible = false;
   }
 
+  private paintCoat(geo: THREE.BufferGeometry, roles: Role[]): void {
+    const pos = geo.attributes.position, col = geo.attributes.color as THREE.BufferAttribute;
+    const top = new THREE.Color(0xe2bc80), low = new THREE.Color(0xfbf2de), c = new THREE.Color();
+    roles.forEach((r, i) => {
+      if (r !== GOLD && r !== LIGHT) return;
+      const t = Math.max(0, Math.min(1, (pos.getY(i) - 0.42) / 0.5));
+      c.fromBufferAttribute(col, i).lerp(low, (1 - t) * 0.55).lerp(top, r === GOLD ? t * 0.6 : t * 0.15);
+      col.setXYZ(i, c.r, c.g, c.b);
+    });
+  }
+
   get active(): boolean { return this.stage !== "off"; }
 
   /** Começa a cena: at = ponto da rua onde ele atravessa; a travessia acompanha o ritmo do jogador. */
   start(at: number, dist: number, speed: number): void {
     this.at = at;
-    this.x = -SIDE_X;
+    this.x = SIDE_X;
     this.t = 0;
-    this.ry = -Math.PI / 2;
+    this.ry = Math.PI / 2;
     this.barks = 0;
     // termina sempre à mesma distância do jogador, para os latidos acontecerem bem à vista
-    this.crossTime = Math.max(0.9, Math.min(2.6, (at - dist - ARRIVE_AHEAD) / speed));
+    this.crossTime = Math.max(1.2, Math.min(2.8, (at - dist - ARRIVE_AHEAD) / speed));
     this.stage = "cross";
     this.group.visible = true;
   }
@@ -261,46 +271,60 @@ export class Bruce {
   update(dist: number, dt: number): void {
     if (this.stage === "off") return;
     this.t += dt;
+    this.clock += dt;
     const J = this.j;
     let trot = 0;
     if (this.stage === "cross") {
-      trot = 1;
-      const k = Math.min(1, this.t / this.crossTime);
-      this.x = -SIDE_X + 2 * SIDE_X * k;
+      // arranca e freia aos poucos, em vez de andar em velocidade constante
+      const k = Math.min(1, this.t / this.crossTime), e = 0.5 * k + 0.5 * k * k * (3 - 2 * k);
+      this.x = SIDE_X - 2 * SIDE_X * e;
+      trot = Math.min(1, Math.min(k, 1 - k) * 9 + 0.25);
       if (k >= 1) { this.stage = "turn"; this.t = 0; this.onArrive?.(); }
     } else if (this.stage === "turn") {
-      this.ry += (-Math.PI * 0.86 - this.ry) * Math.min(1, dt * 14);
-      if (this.t > 0.16) { this.stage = "bark"; this.t = 0; }
+      this.ry += (Math.PI * 0.86 - this.ry) * Math.min(1, dt * 12);
+      if (this.t > 0.18) { this.stage = "bark"; this.t = 0; }
     } else if (this.stage === "bark" && this.t > 0.05 + this.barks * BARK_GAP) {
       this.barks++;
-      this.jumpV = 1.5;
+      this.jumpV = 1.35;
       this.onBark?.();
       if (this.barks >= 3) this.stage = "wait";
     }
     if (this.at < dist - 12) this.stop();
 
-    // pulinho do latido
     this.jumpV -= 9 * dt;
     this.jumpY = Math.max(0, this.jumpY + this.jumpV * dt);
 
-    // pose
-    this.phase += dt * (trot ? 13 : 0);
-    const s = Math.sin(this.phase), c = Math.cos(this.phase), k = Math.min(1, dt * 14);
-    const set = (b: THREE.Bone, v: number) => { b.rotation.x += (v - b.rotation.x) * k; };
-    set(J.armL, trot * 0.55 * s); set(J.armR, -trot * 0.55 * s);
-    set(J.foreL, -trot * 0.75 * Math.max(0, c)); set(J.foreR, -trot * 0.75 * Math.max(0, -c));
-    set(J.thighR, trot * 0.5 * s); set(J.thighL, -trot * 0.5 * s);
-    set(J.shinR, trot * 0.55 * Math.max(0, -c)); set(J.shinL, trot * 0.55 * Math.max(0, c));
-    J.hips.position.y = 0.62 + trot * 0.02 * Math.abs(c);
-    const talking = Math.max(0, Math.sin(Math.min(1, (this.t - (this.barks - 1) * BARK_GAP) / 0.3) * Math.PI));
-    const barking = this.stage === "bark" || (this.stage === "wait" && this.t < 1.1);
-    set(J.neck, barking ? 0.28 : trot * 0.05 * s);
-    set(J.jaw, -0.2 - (barking ? 0.5 * talking : 0));
-    const time = performance.now() / 1000;
-    J.tail1.rotation.z = Math.sin(time * (trot ? 10 : 15)) * 0.32;
-    J.tail2.rotation.z = Math.sin(time * (trot ? 10 : 15) - 0.8) * 0.4;
+    // Trote: pares diagonais, a pata da frente um pouco adiantada, instante sem apoio na troca dos pares.
+    this.phase += dt * 17 * (0.4 + 0.6 * trot);
+    const a = this.phase, lead = 0.32, sinA = Math.sin(a), cosA = Math.cos(a);
+    const f1 = Math.sin(a + lead), f2 = -f1, c1 = Math.cos(a + lead);
+    const k = 1 - Math.exp(-dt * 30);
+    const rot = (b: THREE.Bone, axis: "x" | "y" | "z", v: number) => { b.rotation[axis] += (v - b.rotation[axis]) * k; };
+    rot(J.armL, "x", trot * 0.62 * f1); rot(J.armR, "x", trot * 0.62 * f2);
+    rot(J.foreL, "x", -trot * 1.0 * Math.max(0, c1)); rot(J.foreR, "x", -trot * 1.0 * Math.max(0, -c1));
+    rot(J.thighR, "x", trot * 0.56 * sinA); rot(J.thighL, "x", -trot * 0.56 * sinA);
+    rot(J.shinR, "x", trot * 0.75 * Math.max(0, cosA)); rot(J.shinL, "x", trot * 0.75 * Math.max(0, -cosA));
+    rot(J.footR, "x", -trot * 0.5 * Math.max(0, cosA)); rot(J.footL, "x", -trot * 0.5 * Math.max(0, -cosA));
+    // o corpo sobe duas vezes por ciclo, balança e torce um pouco; cabeça e rabo vêm depois, com atraso
+    J.hips.position.y = 0.605 + trot * 0.032 * Math.abs(sinA);
+    rot(J.hips, "z", trot * 0.04 * sinA);
+    rot(J.hips, "x", trot * 0.025 * Math.sin(2 * a));
+    rot(J.torso, "y", -trot * 0.07 * sinA);
+    rot(J.torso, "z", -trot * 0.05 * sinA);
 
-    const onWalk = Math.abs(this.x) > ROAD_W / 2 ? 0.07 : 0;
+    const since = this.t - (this.barks - 1) * BARK_GAP;
+    const pulse = (this.stage === "bark" || this.stage === "wait") && this.barks > 0 ? Math.max(0, Math.sin(Math.min(1, since / 0.26) * Math.PI)) : 0;
+    const alert = this.stage === "bark" ? 1 : 0;
+    rot(J.neck, "x", trot * 0.05 * Math.sin(2 * a - 0.9) + alert * 0.16 - pulse * 0.2);
+    rot(J.head, "x", -trot * 0.04 * Math.sin(2 * a - 1.3) + pulse * 0.22);
+    rot(J.jaw, "x", -0.16 - 0.05 * Math.sin(this.clock * 9) - pulse * 0.5); // ofegando; abre ao latir
+    // quando para, o rabo abana rápido; trotando, só acompanha o balanço
+    const wag = trot > 0.3 ? Math.sin(a - 0.8) * 0.22 : Math.sin(this.clock * 15) * 0.4;
+    rot(J.tail1, "y", wag);
+    rot(J.tail2, "y", trot > 0.3 ? Math.sin(a - 1.5) * 0.28 : Math.sin(this.clock * 15 - 0.9) * 0.5);
+    rot(J.tail1, "x", -0.08 - trot * 0.06 * Math.sin(2 * a - 1.1));
+
+    const onWalk = Math.max(0, Math.min(1, (Math.abs(this.x) - ROAD_W / 2 + 0.2) / 0.4)) * 0.07;
     this.body.position.y = onWalk + this.jumpY;
     this.group.position.set(this.x, 0, -(this.at - dist));
     this.body.rotation.y = this.ry;
