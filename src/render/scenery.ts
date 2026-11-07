@@ -200,7 +200,7 @@ class Instances {
   private static P = new THREE.Vector3();
   private static S = new THREE.Vector3(1, 1, 1);
 
-  constructor(private geo: THREE.BufferGeometry, private mat: THREE.Material | THREE.Material[], private parent: THREE.Object3D, private cap = 16) {
+  constructor(private geo: THREE.BufferGeometry, private mat: THREE.Material | THREE.Material[], private parent: THREE.Object3D, private cap = 32) {
     this.mesh = this.create();
   }
   private create(): THREE.InstancedMesh {
@@ -318,10 +318,26 @@ export class Scenery {
     this.chunks.set(i, list);
   }
 
+  /** Cria uma cópia de tudo, longe da vista, para ser preparado; devolve como desfazer. */
+  prewarm(): () => void {
+    const hs: Handle[] = [];
+    const ids = [...this.prefabs.keys(), ...BIOMES.map((b) => `walk:${b}`), "lampPool", "sombra", "ubsPlaca"];
+    for (const id of ids) hs.push(this.kind(id).add(0, 500, 0));
+    this.arch ??= new Arch();
+    if (!this.arch.group.parent) this.group.add(this.arch.group);
+    this.arch.group.visible = true;
+    this.arch.group.position.z = -this.lastDist - 40;
+    return () => {
+      for (const h of hs) h.kind.remove(h);
+      if (this.arch && this.archAt === null) this.arch.group.visible = false;
+    };
+  }
+
   /** Coloca o arco da UEPG na rua, além do que já está à vista. */
   placeArch(at: number): void {
     if (this.archAt !== null) return;
-    if (!this.arch) { this.arch = new Arch(); this.group.add(this.arch.group); }
+    this.arch ??= new Arch();
+    if (!this.arch.group.parent) this.group.add(this.arch.group);
     this.arch.group.position.z = -at;
     this.arch.group.visible = true;
     this.archAt = at;

@@ -39,6 +39,8 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
   contínuo do personagem com esqueleto e deformação de engordar). Recursos externos só com
   licença livre (CC0 de preferência), registrados em `CREDITOS.md`.
 - No modo dev, `window.__glyco` permite avançar quadros (`advance`) e salvar capturas em `.debug/` (`shot`).
+- Fluidez: `World3D.prewarm` prepara modelos, texturas e desenhos no menu; qualquer coisa nova que apareça durante a
+  corrida deve entrar nele. Itens são desenhados em lotes (`Batch`) e o cenário em `Instances`.
 - Qualidade gráfica em `src/core/quality.ts` (automática baixa um nível abaixo de ~48 fps). Sintomas de hipo/hiper
   são desenhados no 3D (`src/render/post.ts`), só quando há sintoma.
 - Offline: `public/sw.js` guarda o jogo na primeira visita; troque `VERSION` quando mudar a estratégia de cache.

@@ -8,7 +8,6 @@ import { assemble, JOINTS, loft, rigid, type Joint, type Part, type Ring, type R
  * Proporções humanas (~7,9 cabeças, altura ~1,77). Ele corre para -z (de costas para a câmera).
  * Engordar e emagrecer é uma deformação suave do próprio corpo (decisão do autor).
  * Tudo vira uma malha só: 1 chamada de desenho para o personagem inteiro (+1 para o letreiro do ACS).
- * A versão anterior, de peças separadas, está guardada em character-v1.ts.
  */
 
 /** Ângulos de uma pose (radianos) + altura do quadril. */

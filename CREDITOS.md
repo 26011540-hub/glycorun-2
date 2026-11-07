@@ -15,4 +15,5 @@
 ## Modelos 3D, sons e música
 Nenhum recurso externo. Personagem, cenários, itens, obstáculos e chefão foram modelados no próprio código
 (src/render). Efeitos sonoros e música são gerados na hora pelo navegador (src/audio/audio.ts), sem arquivos
-de áudio de terceiros. Cada recurso externo adicionado será listado aqui com autor, link e licença.
+de áudio de terceiros. O arco da UEPG é uma homenagem modelada do zero a partir de uma foto; não usa o logo oficial
+nem a foto em si. Cada recurso externo adicionado será listado aqui com autor, link e licença.

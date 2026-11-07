@@ -47,7 +47,7 @@ export class Symptoms {
   warm = 0;
 
   constructor() {
-    this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+    this.target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType });
     this.mat = new THREE.ShaderMaterial({
       uniforms: { tex: { value: this.target.texture }, px: { value: new THREE.Vector2() }, ghost: { value: 0 }, time: { value: 0 }, blur: { value: 0 }, warm: { value: 0 } },
       vertexShader: VERT,
@@ -62,12 +62,7 @@ export class Symptoms {
 
   get active(): boolean { return this.ghost > 0.01 || this.blur > 0.05 || this.warm > 0.01; }
 
-  setSize(w: number, h: number, msaa: number): void {
-    if (this.target.samples !== msaa) {
-      // mudar a suavização exige recriar a imagem interna; sem isso o jogo travava ao subir da qualidade baixa
-      this.target.samples = msaa;
-      this.target.dispose();
-    }
+  setSize(w: number, h: number): void {
     this.target.setSize(w, h);
     (this.mat.uniforms.px.value as THREE.Vector2).set(1 / w, 1 / h);
   }
@@ -76,7 +71,7 @@ export class Symptoms {
     const u = this.mat.uniforms;
     u.ghost.value = this.ghost;
     u.time.value = performance.now() / 1000;
-    u.blur.value = this.blur * (renderer.getPixelRatio() * 2.2);
+    u.blur.value = this.blur * (renderer.getPixelRatio() * 1.55);
     u.warm.value = this.warm;
     renderer.setRenderTarget(this.target);
     renderer.render(scene, camera);

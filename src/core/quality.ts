@@ -8,16 +8,15 @@ export type QualityChoice = Quality | "auto";
 
 export interface QualitySettings {
   pixelRatio: number; // nitidez (pixels por ponto da tela)
-  msaa: number; // suavização de bordas
   rain: number; // gotas de chuva
   particles: number; // fração das partículas
   viewFar: number; // até onde o cenário é desenhado
 }
 
 export const QUALITY: Record<Quality, QualitySettings> = {
-  alta: { pixelRatio: 2, msaa: 4, rain: 500, particles: 1, viewFar: 150 },
-  media: { pixelRatio: 1.5, msaa: 2, rain: 300, particles: 0.7, viewFar: 135 },
-  baixa: { pixelRatio: 1, msaa: 0, rain: 140, particles: 0.4, viewFar: 110 },
+  alta: { pixelRatio: 2, rain: 500, particles: 1, viewFar: 150 },
+  media: { pixelRatio: 1.5, rain: 300, particles: 0.7, viewFar: 135 },
+  baixa: { pixelRatio: 1, rain: 140, particles: 0.4, viewFar: 110 },
 };
 export const QUALITY_LABEL: Record<QualityChoice, string> = { auto: "Automática", alta: "Alta", media: "Média", baixa: "Baixa" };
 const ORDER: Quality[] = ["alta", "media", "baixa"];

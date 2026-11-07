@@ -59,7 +59,7 @@ const hud = new Hud();
 initGaugeBar();
 buildStaticScreens(TOUCH, skin, (s) => { skin = s; store.setItem("glycorun2-skin", s); world.setSkin(s); sfx("click"); });
 
-new ResizeObserver(() => world.resize(canvas.clientWidth, canvas.clientHeight)).observe(canvas);
+new ResizeObserver(() => { world.resize(canvas.clientWidth, canvas.clientHeight); drawnStill = false; }).observe(canvas);
 world.resize(canvas.clientWidth, canvas.clientHeight);
 
 // ---------- Qualidade gráfica (automática ou escolhida) ----------
@@ -76,6 +76,7 @@ document.querySelectorAll<HTMLElement>("[data-quality]").forEach((b) => (b.oncli
   autoQ.set(next, TOUCH);
   store.setItem("glycorun2-quality", next);
   world.setQuality(autoQ.level);
+  drawnStill = false; // redesenha na pausa
   paintQuality();
   sfx("click");
 }));
@@ -271,18 +272,26 @@ function onEvents(events: GameEvent[]) {
 const fpsEl = $("fps");
 const showFps = new URLSearchParams(location.search).has("fps");
 fpsEl.hidden = !showFps;
-let fpsAcc = 0, fpsFrames = 0, hudAcc = 0;
+let fpsAcc = 0, fpsFrames = 0, hudAcc = 0, drawnStill = false;
 
 let last = performance.now();
 let time = 0;
+let smooth = 1 / 60; // tempo do quadro suavizado: tira a tremedeira do relógio do navegador
+let warmed = false;
+let fontsReady = false;
+document.fonts.ready.then(() => { fontsReady = true; });
+
 function frame(now: number) {
+  const raw = (now - last) / 1000;
+  last = now;
   if (mode === "run") {
-    const q = autoQ.sample((now - last) / 1000);
+    const q = autoQ.sample(raw);
     if (q) { world.setQuality(q); paintQuality(); }
   }
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
-  advance(dt);
+  // prepara tudo enquanto a pessoa ainda está no menu
+  if (!warmed && fontsReady && mode === "menu") { warmed = true; world.prewarm(); }
+  smooth += (Math.min(0.05, raw) - smooth) * 0.25;
+  advance(smooth);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
@@ -307,7 +316,10 @@ function advance(dt: number) {
     audio.tempo = 108 + Math.min(24, (state.speed - 18) * 1.1);
     audio.setRain(state.rain);
   }
-  world.update(state, state.events, mode === "run" || mode === "over" || mode === "menu" || mode === "count" ? dt : 0, time, mode);
+  // no quiz e na pausa nada se move: não redesenhar poupa bateria e evita o celular esquentar
+  const still = mode === "quiz" || mode === "pause";
+  if (!still || !drawnStill) world.update(state, state.events, still ? 0 : dt, time, mode);
+  drawnStill = still;
   onEvents(state.events);
   state.events.length = 0;
   hud.tick(mode === "run" ? dt : 0);

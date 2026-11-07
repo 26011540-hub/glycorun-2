@@ -21,6 +21,7 @@ export type ViewMode = "menu" | "count" | "run" | "pause" | "quiz" | "over";
 const TILE = 8; // comprimento de um ciclo das faixas pintadas na rua
 const RAIN_DROPS = 500; // máximo; a qualidade escolhe quantas aparecem
 const DUSK_SUN = new THREE.Color(0xff9a5a);
+const BOSS_TYPES = ["lata", "burger"] as const;
 
 function roadTexture(): THREE.CanvasTexture {
   const c = document.createElement("canvas");
@@ -66,6 +67,11 @@ function roadTexture(): THREE.CanvasTexture {
   return t;
 }
 
+/** Lote de cópias de um modelo. */
+interface Batch { mesh: THREE.InstancedMesh; n: number }
+const BATCH_CAP = 24;
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0), _p = new THREE.Vector3(), _s = new THREE.Vector3();
+
 /** Pool simples: reaproveita objetos em vez de criar e destruir a cada item. */
 class Pool {
   private free: THREE.Object3D[] = [];
@@ -103,6 +109,7 @@ export class World3D {
   private itemPrefabs = buildItemPrefabs();
   private obstaclePrefabs = buildObstaclePrefabs();
   private pools = new Map<string, Pool>();
+  private batches = new Map<string, Batch>();
   private live = new Map<number, { obj: THREE.Object3D; pool: Pool; key: string }>();
   private haloGeo = new THREE.RingGeometry(0.5, 0.66, 24).rotateX(-Math.PI / 2);
   private haloMats = new Map<string, THREE.MeshBasicMaterial>();
@@ -195,48 +202,96 @@ export class World3D {
     return m;
   }
 
-  private pool(key: string): Pool {
-    let p = this.pools.get(key);
+  private pool(id: string): Pool {
+    let p = this.pools.get(id);
     if (p) return p;
-    const [id, fix] = key.split(":");
-    if (this.obstaclePrefabs.has(id)) {
-      const prefab = this.obstaclePrefabs.get(id) as Prefab;
-      p = new Pool(() => {
-        const g = new THREE.Group();
-        g.add(prefab.make());
-        const hint = new THREE.Sprite(this.hintMats[id]);
-        hint.scale.set(1.9, 0.48, 1);
-        hint.position.y = OBSTACLE_HINT[id].y;
-        hint.name = "hint";
-        g.userData.hint = hint;
-        g.add(hint);
-        return g;
-      }, this.scene);
-    } else {
-      const it = item(id);
-      const prefab = this.itemPrefabs.get(id) as Prefab;
-      const haloMat = this.halo(fix ? "fix" : it.k);
-      p = new Pool(() => {
-        const g = new THREE.Group();
-        const model = prefab.make();
-        model.name = "model";
-        g.userData.model = model;
-        model.scale.setScalar(1.7);
-        const ring = new THREE.Mesh(this.haloGeo, haloMat);
-        ring.position.y = 0.03;
-        g.add(model, ring);
-        if (it.k === "pw") {
-          const pr = new THREE.Mesh(this.powerRingGeo, this.powerRingMat);
-          pr.name = "power";
-          g.userData.power = pr;
-          pr.position.y = 0.95;
-          g.add(pr);
-        }
-        return g;
-      }, this.scene);
-    }
-    this.pools.set(key, p);
+    const prefab = this.obstaclePrefabs.get(id) as Prefab;
+    p = new Pool(() => {
+      const g = new THREE.Group();
+      g.add(prefab.make());
+      const hint = new THREE.Sprite(this.hintMats[id]);
+      hint.scale.set(1.9, 0.48, 1);
+      hint.position.y = OBSTACLE_HINT[id].y;
+      g.userData.hint = hint;
+      g.add(hint);
+      return g;
+    }, this.scene);
+    this.pools.set(id, p);
     return p;
+  }
+
+  /** Lote: todas as cópias de um mesmo modelo são desenhadas de uma vez. */
+  private batch(key: string, geo: THREE.BufferGeometry, mat: THREE.Material | THREE.Material[]): Batch {
+    let b = this.batches.get(key);
+    if (!b) {
+      const mesh = new THREE.InstancedMesh(geo, mat, BATCH_CAP);
+      mesh.frustumCulled = false;
+      mesh.count = 0;
+      mesh.visible = false;
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      this.scene.add(mesh);
+      b = { mesh, n: 0 };
+      this.batches.set(key, b);
+    }
+    return b;
+  }
+  private itemBatch(id: string): Batch {
+    const p = this.itemPrefabs.get(id) as Prefab;
+    return this.batch(`i:${id}`, p.geo, MAT.base);
+  }
+  private haloBatch(kind: string): Batch { return this.batch(`h:${kind}`, this.haloGeo, this.halo(kind)); }
+  private powerBatch(): Batch { return this.batch("pw", this.powerRingGeo, this.powerRingMat); }
+
+  private add(b: Batch, x: number, y: number, z: number, ry: number, scale: number): void {
+    if (b.n >= BATCH_CAP) return;
+    _q.setFromAxisAngle(_up, ry);
+    _m.compose(_p.set(x, y, z), _q, _s.setScalar(scale));
+    b.mesh.setMatrixAt(b.n++, _m);
+  }
+  private flushBatches(): void {
+    for (const b of this.batches.values()) {
+      b.mesh.count = b.n;
+      b.mesh.visible = b.n > 0;
+      if (b.n) b.mesh.instanceMatrix.needsUpdate = true;
+      b.n = 0;
+    }
+  }
+
+  private drawItem(o: WorldObject, hypo: boolean, time: number): void {
+    const def = item(o.type), x = o.lx * LANE_W, z = -o.z;
+    this.add(this.itemBatch(o.type), x, 0.35 + o.y0 + Math.sin(time * 4 + o.id) * 0.1, z, time * 2 + o.id, 1.7);
+    this.add(this.haloBatch(hypo && def.fast ? "fix" : def.k), x, 0.03, z, 0, 1);
+    if (def.k === "pw") this.add(this.powerBatch(), x, 0.85 + o.y0, z, time * 3, 1);
+  }
+
+  /**
+   * Prepara tudo uma vez, no menu: envia modelos e texturas à placa de vídeo e compila os desenhos.
+   * Sem isso, cada coisa nova (bairro, raça, sintoma, arco) causaria uma engasgada no meio da corrida.
+   */
+  prewarm(): void {
+    const undoScenery = this.scenery.prewarm();
+    this.dogs.prewarm();
+    for (const id of this.itemPrefabs.keys()) this.add(this.itemBatch(id), 0, 500, 0, 0, 1);
+    for (const k of Object.keys(KIND_COLOR)) this.add(this.haloBatch(k), 0, 500, 0, 0, 1);
+    this.add(this.powerBatch(), 0, 500, 0, 0, 1);
+    this.flushBatches();
+    const obstacles = [...this.obstaclePrefabs.keys()].map((id) => {
+      const pool = this.pool(id), obj = pool.get();
+      obj.position.set(0, 0, -30);
+      return { pool, obj };
+    });
+    for (const g of Object.values(this.bosses)) { g.visible = true; g.position.set(0, 3, -30); }
+    this.rain.visible = true;
+    this.plateTint.visible = true;
+    this.quizShield.visible = true;
+    this.insulinRing.visible = true;
+    this.camera.position.set(0, 5, 8);
+    this.camera.lookAt(0, 1, -12);
+    this.sky.update(lightAt(0), 0, this.camera);
+    this.post.render(this.renderer, this.scene, this.camera); // variação usada nos sintomas
+    this.renderer.render(this.scene, this.camera); // variação normal
+    undoScenery();
+    for (const { pool, obj } of obstacles) pool.release(obj);
   }
 
   setSkin(skin: SkinId): void {
@@ -256,7 +311,8 @@ export class World3D {
     this.camera.updateProjectionMatrix();
     const buf = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     this.particles.setViewport(buf.y, this.baseFov);
-    this.post.setSize(buf.x, buf.y, this.q.msaa);
+    // o sintoma borra a imagem de qualquer forma: desenhar em tamanho menor deixa bem mais leve
+    this.post.setSize(Math.round(buf.x * 0.7), Math.round(buf.y * 0.7));
   }
 
   /** Aplica um nível de qualidade gráfica (nitidez, chuva, partículas, distância do cenário). */
@@ -384,24 +440,26 @@ export class World3D {
     for (const e of this.live.values()) e.obj.userData.seen = false;
     if (playing) {
       for (const o of s.objs) {
-        if (o.done && o.kind === "item") continue;
-        const key = o.kind === "obs" ? o.type : o.type + (hypo && item(o.type).fast ? ":fix" : "");
+        if (o.kind === "item") {
+          if (!o.done) this.drawItem(o, hypo, time);
+          continue;
+        }
         let entry = this.live.get(o.id);
-        if (entry && entry.key !== key) { entry.pool.release(entry.obj); entry = undefined; }
         if (!entry) {
-          const pool = this.pool(key);
-          entry = { obj: pool.get(), pool, key };
+          const pool = this.pool(o.type);
+          entry = { obj: pool.get(), pool, key: o.type };
           this.live.set(o.id, entry);
         }
         entry.obj.userData.seen = true;
-        this.place(entry.obj, o, s, time);
+        this.place(entry.obj, o, s);
       }
     }
     for (const [id, e] of this.live) if (!e.obj.userData.seen) { e.pool.release(e.obj); this.live.delete(id); }
+    this.flushBatches();
 
     // chefão
-    for (const [type, g] of Object.entries(this.bosses)) {
-      const B = s.boss;
+    for (const type of BOSS_TYPES) {
+      const g = this.bosses[type], B = s.boss;
       g.visible = playing && !!B && B.type === type;
       if (!B || !g.visible) continue;
       const enter = Math.min(1, B.t / 1.2), leave = Math.min(1, Math.max(0, (BOSS_DUR - B.t) / 1.2));
@@ -475,19 +533,11 @@ export class World3D {
     else this.renderer.render(this.scene, this.camera);
   }
 
-  private place(g: THREE.Object3D, o: WorldObject, s: GameState, time: number): void {
+  private place(g: THREE.Object3D, o: WorldObject, s: GameState): void {
     g.position.set(o.lx * LANE_W, 0, -o.z);
-    if (o.kind === "obs") {
-      const hint = g.userData.hint as THREE.Sprite;
-      hint.material = this.hintMats[o.type === "pilha" && s.turbo > 0 ? "pilhaTurbo" : o.type];
-      hint.visible = o.z > 3;
-      return;
-    }
-    const model = g.userData.model as THREE.Object3D;
-    model.position.y = 0.35 + o.y0 + Math.sin(time * 4 + o.id) * 0.1;
-    model.rotation.y = time * 2 + o.id;
-    const pr = (g.userData.power as THREE.Object3D | undefined);
-    if (pr) { pr.rotation.y = time * 3; pr.position.y = 0.85 + o.y0; }
+    const hint = g.userData.hint as THREE.Sprite;
+    hint.material = this.hintMats[o.type === "pilha" && s.turbo > 0 ? "pilhaTurbo" : o.type];
+    hint.visible = o.z > 3;
   }
 
   /** Quantas chamadas de desenho o último quadro usou (para medir desempenho). */

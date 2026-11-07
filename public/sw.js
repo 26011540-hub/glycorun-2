@@ -1,6 +1,6 @@
 // Service worker do GlycoRun 2: guarda o jogo no aparelho para funcionar sem internet
 // depois de aberto uma vez (útil na UBS). Troque VERSION a cada publicação importante.
-const VERSION = "glycorun2-v1";
+const VERSION = "glycorun2-v2";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", (e) => {

@@ -165,6 +165,16 @@ export class Dogs {
     return k;
   }
 
+  /** Monta todos os modelos de uma vez, no menu, para nenhum atrasar a corrida. */
+  prewarm(): void {
+    for (const b of BREEDS) for (const p of ["stand", "sit"]) {
+      const k = this.kind(`${b}:${p}`);
+      k.mesh.count = 1;
+      k.mesh.visible = true;
+      k.mesh.setMatrixAt(0, M.makeTranslation(0, 500, 0));
+    }
+  }
+
   private spawn(i: number): Dog[] {
     const r = seeded((i + 1000) * 2654435 + 977), a = i * CHUNK, out: Dog[] = [];
     for (let k = 0; k < 4; k++) r(); // descarta os primeiros números: blocos vizinhos ficam bem diferentes

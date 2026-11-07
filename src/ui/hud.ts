@@ -72,8 +72,9 @@ export class Hud {
     this.set("cond", "width", s.cond.toFixed(0) + "%");
     const q = Math.max(0, s.quizT);
     this.set("qt", "text", String(Math.ceil(q)));
-    const ring = $("qring");
-    ring.style.setProperty("--p", (q / QUIZ_EVERY).toFixed(2));
+    // o anel só é repintado em passos: repintar a cada instante pesa no celular
+    const p = (Math.round((q / QUIZ_EVERY) * 30) / 30).toFixed(3);
+    if (this.cache.get("ringP") !== p) { this.cache.set("ringP", p); $("qring").style.setProperty("--p", p); }
     this.set("qring", "class", q <= 5 ? "ring soon" : "ring");
 
     let chips = "";
