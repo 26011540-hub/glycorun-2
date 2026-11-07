@@ -106,6 +106,7 @@
             <input id="pname" maxlength="16" placeholder="Seu nome" autocomplete="off" aria-label="Seu nome para o placar" />
             <button id="saveBtn" type="submit">Salvar</button>
           </form>
+          <p class="gnote" id="saveNote" hidden></p>
           <ol class="board" id="board1"></ol>
           <div class="btns"><button id="again" class="cta">Jogar de novo</button><button class="ghost" id="toMenu">Menu</button></div>
         </div>
@@ -114,9 +115,21 @@
       <div class="screen modal" id="boardPanel" hidden>
         <div class="card scroll">
           <h2>Placar Rei da Glicemia</h2>
-          <p class="lead" id="boardIntro"></p>
-          <ol class="board" id="board2"></ol>
-          <div class="btns"><button class="cta" data-back>Voltar</button><button class="ghost" id="clearBoard">Zerar placar</button></div>
+          <div class="tabs" role="tablist">
+            <button class="tab on" id="tabAll" role="tab" aria-selected="true">🌎 Todos</button>
+            <button class="tab" id="tabHere" role="tab" aria-selected="false">📱 Este aparelho</button>
+          </div>
+          <div id="paneAll">
+            <p class="lead" id="globalIntro"></p>
+            <div class="podium" id="podium"></div>
+            <ol class="board rest" id="boardAll"></ol>
+            <p class="gnote" id="globalNote"></p>
+          </div>
+          <div id="paneHere" hidden>
+            <p class="lead" id="boardIntro"></p>
+            <ol class="board" id="board2"></ol>
+          </div>
+          <div class="btns"><button class="cta" data-back>Voltar</button><button class="ghost" id="clearBoard" hidden>Zerar placar</button></div>
         </div>
       </div>
 

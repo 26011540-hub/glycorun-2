@@ -147,6 +147,30 @@ h3 { font-size: 16px; font-weight: 600; margin: 14px 0 6px; }
 .board li::before { content: counter(pos); font-family: var(--display); font-weight: 700; color: var(--muted); }
 .board li:nth-child(1)::before { content: "🥇"; } .board li:nth-child(2)::before { content: "🥈"; } .board li:nth-child(3)::before { content: "🥉"; }
 .board li.me { border-color: var(--ok); background: #eafaf0; }
+.board.rest { counter-reset: pos 3; }
+.board.rest li:nth-child(n)::before { content: counter(pos); }
+.tabs { display: flex; gap: 6px; background: #e8eef3; border-radius: 14px; padding: 4px; margin: 8px 0 4px; }
+.tab { flex: 1; background: transparent; color: var(--muted); font: 800 14px var(--body); padding: 9px 6px; border-radius: 11px; transition: background .15s, color .15s; }
+.tab.on { background: #fff; color: var(--ink); box-shadow: 0 2px 6px #0002; }
+.gnote { font-size: 13px; color: var(--muted); text-align: center; margin: 8px 0 0; }
+.gnote.ok { color: var(--ok2); font-weight: 800; }
+.gnote.no { color: var(--bad); font-weight: 800; }
+/* pódio: 2º, 1º e 3º lado a lado, o primeiro mais alto e com coroa */
+.podium { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 6px; margin: 10px 0 6px; min-height: 40px; }
+.podium .spot { display: flex; flex-direction: column; align-items: center; min-width: 0; animation: rise .5s var(--ease) both; }
+.podium .spot:nth-child(1) { animation-delay: .12s; } .podium .spot:nth-child(3) { animation-delay: .22s; }
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } }
+.podium .who { font-weight: 800; font-size: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.podium .crown { font-size: 26px; line-height: 1; margin-bottom: 2px; }
+.podium .medal { font-size: 22px; line-height: 1; margin-bottom: 2px; }
+.podium .pts { font-family: var(--display); font-weight: 700; font-size: 18px; }
+.podium .tir { font-size: 11px; color: var(--muted); font-weight: 700; margin-bottom: 4px; }
+.podium .step { width: 100%; border-radius: 12px 12px 4px 4px; display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 26px; color: #fff; text-shadow: 0 2px 0 #0003; }
+.podium .p1 .step { height: 92px; background: linear-gradient(180deg, #f7cf4a, var(--gold)); box-shadow: 0 4px 0 #a07a0e; }
+.podium .p2 .step { height: 66px; background: linear-gradient(180deg, #d9e0e8, #a9b5c2); box-shadow: 0 4px 0 #7d8a98; }
+.podium .p3 .step { height: 50px; background: linear-gradient(180deg, #e7a46a, #c27a3d); box-shadow: 0 4px 0 #8c5223; }
+.podium .spot.me .who { color: var(--ok2); }
+.podium .spot.empty .step { opacity: .35; }
 .board .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
 .board .tir { font-size: 12px; color: var(--muted); }
 .board .pts { font-family: var(--display); font-weight: 700; font-size: 17px; }

@@ -1,6 +1,7 @@
 import { LEGEND, POWER_LEGEND } from "../content/items";
 import type { Question } from "../content/quiz";
-import { BOARD_INTRO, INTRO, SKINS, SOURCES, SOURCES_INTRO, type SkinId } from "../content/texts";
+import { BOARD_INTRO, GLOBAL, INTRO, SKINS, SOURCES, SOURCES_INTRO, type SkinId } from "../content/texts";
+import { nameKey, type GlobalTop } from "../rules/global";
 import { achievements, BOARD_SHOW, loadBoard, type KeyValueStore } from "../rules/scoring";
 import { meters, timeInRange, type GameState } from "../rules/state";
 
@@ -60,6 +61,30 @@ export function buildStaticScreens(touch: boolean, skin: SkinId, onSkin: (s: Ski
     $("srcList").append(li);
   }
   $("boardIntro").textContent = BOARD_INTRO;
+  $("globalIntro").textContent = GLOBAL.intro;
+}
+
+/** Aba "Todos": pódio com os 3 primeiros e a lista do 4º em diante. */
+export function renderGlobal(top: GlobalTop | null, note: string, me: string | null): void {
+  const podium = $("podium"), rest = $("boardAll"), mine = me ? nameKey(me) : null;
+  podium.innerHTML = "";
+  rest.innerHTML = "";
+  $("globalNote").textContent = note;
+  if (!top) return;
+  if (!top.top.length) { $("globalNote").textContent = GLOBAL.empty; return; }
+  for (const place of [2, 1, 3]) {
+    const r = top.top[place - 1];
+    const spot = el("div", `spot p${place}${r ? "" : " empty"}${r && nameKey(r.n) === mine ? " me" : ""}`);
+    if (place === 1) spot.append(el("div", "crown", "👑"));
+    else spot.append(el("div", "medal", place === 2 ? "🥈" : "🥉"));
+    spot.append(el("div", "who", r ? r.n : "—"), el("div", "pts", r ? String(r.s) : ""), el("div", "tir", r ? `${r.tir}% no alvo` : ""), el("div", "step", String(place)));
+    podium.append(spot);
+  }
+  for (const r of top.top.slice(3)) {
+    const li = el("li", nameKey(r.n) === mine ? "me" : undefined);
+    li.append(el("span", "nm", r.n), el("span", "tir", `${r.tir}% no alvo`), el("span", "pts", String(r.s)));
+    rest.append(li);
+  }
 }
 
 export function renderBoard(store: KeyValueStore, target: HTMLElement, highlight: string | null): void {

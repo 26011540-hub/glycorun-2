@@ -3,22 +3,24 @@ import "@fontsource/fredoka/latin-700.css";
 import "@fontsource/nunito/latin-700.css";
 import "@fontsource/nunito/latin-800.css";
 import "./ui/style.css";
-import { createGame, toast, type GameEvent, type GameState } from "./rules/state";
+import { createGame, timeInRange, toast, type GameEvent, type GameState } from "./rules/state";
 import { act, step } from "./rules/step";
 import { createRng } from "./rules/rng";
 import { answerQuiz, closeQuiz, QuizDeck } from "./rules/quiz";
 import { addToBoard, saveBoard, NAME_MAX } from "./rules/scoring";
+import { badName, cleanName } from "./rules/global";
+import { flushPending, globalOn, loadGlobal, sendGlobal } from "./core/online";
 import { lightAt } from "./rules/environment";
 import { TARGET_HIGH } from "./rules/glucose";
 import type { Question } from "./content/quiz";
-import { BRUCE_BANNER, MSG, SKINS, type SkinId } from "./content/texts";
+import { BRUCE_BANNER, GLOBAL, MSG, SKINS, type SkinId } from "./content/texts";
 import { World3D, type ViewMode } from "./render/world";
 import { biomeAt, BIOME_NAMES, type Biome } from "./render/scenery";
 import { bindInput } from "./input/input";
 import { audio, type Sfx } from "./audio/audio";
 import { Hud, initGaugeBar, type Tone } from "./ui/hud";
 import { AutoQuality, QUALITY_LABEL, type QualityChoice } from "./core/quality";
-import { banner, buildStaticScreens, renderBoard, showAnswer, showGameOver, showOnly, showQuestion, type Screen } from "./ui/screens";
+import { banner, buildStaticScreens, renderBoard, renderGlobal, showAnswer, showGameOver, showOnly, showQuestion, type Screen } from "./ui/screens";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const TOUCH = matchMedia("(pointer: coarse)").matches;
@@ -114,6 +116,7 @@ paintSettings();
 
 // ---------- Fluxo do jogo ----------
 function start() {
+  void flushPending(store); // manda pontuações que ficaram sem internet
   audio.unlock();
   sfx("click");
   rng = createRng();
@@ -178,6 +181,7 @@ function finish() {
     $<HTMLButtonElement>("saveBtn").textContent = "Salvar";
     $<HTMLButtonElement>("saveBtn").disabled = false;
     lastEntry = null;
+    $("saveNote").hidden = true;
     renderBoard(store, $("board1"), null);
     if (state.totT > 0 && state.tirT / state.totT > 0.8) sfx("win");
   }, 1100);
@@ -195,7 +199,30 @@ $("bv").onclick = () => answer(true);
 $("cont").onclick = continueRun;
 $("howBtn").onclick = open("how");
 $("srcBtn").onclick = open("sources");
-$("boardBtn").onclick = () => { renderBoard(store, $("board2"), null); open("boardPanel")(); };
+// ---------- Placar: aba "Todos" (pódio online) e aba "Este aparelho" ----------
+let boardLoad = 0;
+function boardTab(all: boolean): void {
+  $("tabAll").classList.toggle("on", all);
+  $("tabHere").classList.toggle("on", !all);
+  $("tabAll").setAttribute("aria-selected", String(all));
+  $("tabHere").setAttribute("aria-selected", String(!all));
+  $("paneAll").hidden = !all;
+  $("paneHere").hidden = all;
+  $("clearBoard").hidden = all;
+  if (!all) { renderBoard(store, $("board2"), null); return; }
+  if (!globalOn()) { renderGlobal(null, GLOBAL.off, null); return; }
+  const me = store.getItem("glycorun2-name");
+  renderGlobal(null, GLOBAL.loading, me);
+  const ticket = ++boardLoad;
+  void loadGlobal(store).then(({ top, fresh }) => {
+    if (ticket !== boardLoad) return; // a pessoa já trocou de aba
+    const note = !top ? GLOBAL.offlineNone : fresh ? GLOBAL.total(top.total) : GLOBAL.offline;
+    renderGlobal(top, note, me);
+  });
+}
+$("tabAll").onclick = () => { sfx("click"); resetClear(); boardTab(true); };
+$("tabHere").onclick = () => { sfx("click"); boardTab(false); };
+$("boardBtn").onclick = () => { open("boardPanel")(); boardTab(globalOn()); };
 document.querySelectorAll<HTMLElement>("[data-back]").forEach((b) => (b.onclick = () => { resetClear(); open("menu")(); }));
 let clearArmed = false;
 const resetClear = () => { clearArmed = false; $("clearBoard").textContent = "Zerar placar"; };
@@ -208,7 +235,10 @@ $("clearBoard").onclick = () => {
 $("saveForm").addEventListener("submit", (e) => {
   e.preventDefault();
   if (saved) return;
-  const name = $<HTMLInputElement>("pname").value.slice(0, NAME_MAX);
+  const name = cleanName($<HTMLInputElement>("pname").value.slice(0, NAME_MAX));
+  const note = $("saveNote");
+  const say = (text: string, cls = "") => { note.textContent = text; note.className = "gnote " + cls; note.hidden = false; };
+  if (badName(name)) { say(GLOBAL.badName, "no"); sfx("wrong"); return; }
   store.setItem("glycorun2-name", name);
   lastEntry = addToBoard(store, name, state);
   saved = true;
@@ -216,8 +246,17 @@ $("saveForm").addEventListener("submit", (e) => {
   $<HTMLButtonElement>("saveBtn").textContent = "Salvo!";
   $<HTMLButtonElement>("saveBtn").disabled = true;
   renderBoard(store, $("board1"), lastEntry);
+  if (!globalOn()) return;
+  if (!name) { say(GLOBAL.needName); return; }
+  say(GLOBAL.loading);
+  void sendGlobal(store, { n: name, s: Math.round(state.score), tir: timeInRange(state) }).then((r) => {
+    if (r.kind === "ok") say(GLOBAL.sent(r.top.pos), "ok");
+    else if (r.kind === "queued") say(GLOBAL.queued);
+    else say(r.why === "nome" ? GLOBAL.badName : GLOBAL.rejected, "no");
+  });
 });
 document.addEventListener("visibilitychange", () => { if (document.hidden && mode === "run") togglePause(); });
+window.addEventListener("online", () => void flushPending(store));
 window.addEventListener("keydown", (e) => {
   if (mode !== "quiz" || e.target instanceof HTMLInputElement) return;
   if (e.key === "m" || e.key === "M") answer(false);

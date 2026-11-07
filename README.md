@@ -49,3 +49,7 @@ No celular, use "Adicionar à tela inicial" para ele abrir como um aplicativo, e
 - `src/core/quality.ts` — qualidade gráfica automática.
 
 Créditos e licenças: veja `CREDITOS.md`. Regras do projeto: veja `CLAUDE.md`.
+
+## Placar de todos os jogadores
+A aba **Todos** do placar mostra um pódio com a melhor pontuação de cada pessoa que já jogou. Ela usa uma planilha Google
+privada; o passo a passo para ligar está em `servidor/COMO-LIGAR.md`.

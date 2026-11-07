@@ -81,3 +81,19 @@ export const SOURCES: readonly { text: string; link?: string }[] = [
 
 export const BOARD_INTRO =
   "Melhores corridas neste aparelho. Ideal para a apresentação na turma ou na UBS, todos jogando no mesmo computador ou celular.";
+
+/** Placar de todos os jogadores (online). */
+export const GLOBAL = {
+  intro: "A melhor pontuação de cada pessoa que já jogou, em qualquer celular ou computador.",
+  loading: "Carregando o placar…",
+  off: "O placar de todos ainda não foi ligado. Enquanto isso, veja o placar deste aparelho.",
+  empty: "Ninguém no placar de todos ainda. Jogue, salve seu nome e seja o primeiro!",
+  total: (n: number) => (n === 1 ? "1 pessoa já jogou." : `${n} pessoas já jogaram.`),
+  offline: "Sem internet agora: esta é a última lista que o aparelho viu.",
+  offlineNone: "Sem internet agora. Tente de novo mais tarde.",
+  sent: (pos: number | undefined) => (pos ? `Enviado ao placar de todos! Sua melhor marca está em ${pos}º lugar.` : "Enviado ao placar de todos!"),
+  queued: "Sem internet: sua pontuação vai para o placar de todos assim que a conexão voltar.",
+  needName: "Escreva um apelido para entrar no placar de todos.",
+  badName: "Esse apelido não pode ser usado. Escolha outro.",
+  rejected: "O placar de todos não aceitou esta pontuação.",
+};

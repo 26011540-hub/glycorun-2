@@ -20,6 +20,9 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
   O endereço com `?arco` faz ele aparecer ~10 s após o início (atalho para apresentações).
 - Dr. Bruce (`src/render/bruce.ts`): homenagem ao golden da professora, de jaleco e estetoscópio. Aos 45 m atravessa a
   rua da direita para a esquerda, para virado para a rua e late (espera o quiz fechar). Só cenário. O endereço com `?bruce` faz a cena acontecer logo no início.
+- Placar "Todos" (pódio online): planilha Google do usuário via Apps Script (`servidor/placar.gs`, guia em
+  `servidor/COMO-LIGAR.md`). Endereço em `src/content/online.ts` (vazio = desligado). Só apelido, pontos e tempo no alvo;
+  filtro de palavrões igual em `src/rules/global.ts` e no script. Teste local: `?placar=<endereço>` (só no modo dev).
 - Cachorros (`src/render/dogs.ts`) são só cenário: sempre na calçada, sem colisão e sem efeito nas regras. Corpo feito de anéis, com manchas por face; patas, rabo e cabeça se movem na placa de vídeo.
 
 ## Arquitetura (manter separado)
