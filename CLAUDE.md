@@ -16,6 +16,9 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
 - Visuais do personagem: Corredor, Fone de ouvido, Mochila de hidratação, ACS (substitui o Estetoscópio).
 - O corpo do personagem fica mais largo com condicionamento baixo (decisão do usuário), de forma suave e não caricata.
 - Hipoglicemia aparece como visão turva e dupla (decisão do usuário; o original usava visão sem cor).
+- Arco da UEPG (`src/render/landmarks.ts`): nos dias múltiplos de 5, com nome em letras próprias, sem o logo oficial.
+  O endereço com `?arco` faz ele aparecer ~10 s após o início (atalho para apresentações).
+- Cachorros (`src/render/dogs.ts`) são só cenário: sempre na calçada, sem colisão e sem efeito nas regras.
 
 ## Arquitetura (manter separado)
 - `src/content/` — textos, quiz, itens, conquistas. Só dados.

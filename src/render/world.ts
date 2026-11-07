@@ -88,6 +88,8 @@ export class World3D {
   private camera = new THREE.PerspectiveCamera(60, 1, 0.1, VIEW_FAR + 25);
   private sky = new Sky(VIEW_FAR + 10);
   private scenery = new Scenery();
+  /** Chamado quando o jogador passa sob o arco da UEPG. */
+  set onArch(f: () => void) { this.scenery.onArch = f; }
   readonly dogs = new Dogs();
   private roadTex = roadTexture();
   private roadMat = new THREE.MeshLambertMaterial({ map: this.roadTex });
@@ -283,6 +285,11 @@ export class World3D {
     P.warm = hi * 0.9;
   }
 
+  /** O arco nasce logo depois do trecho já visível, para o campus aparecer inteiro. */
+  placeArch(dist: number): void {
+    this.scenery.placeArch(dist + this.q.viewFar + 75);
+  }
+
   /** Efeitos visuais dos acontecimentos do jogo. */
   private react(e: GameEvent, s: GameState): void {
     const x = s.px * LANE_W, P = this.particles;
@@ -293,6 +300,9 @@ export class World3D {
         this.hero.hit();
         P.emit(x, 1.0, -0.4, 0xff9a3c, 18, { speed: 4, up: 3, size: 0.13, life: 0.5 });
         P.emit(x, 0.1, 0, 0xc9c2b5, 10, { speed: 2, up: 1, size: 0.2, life: 0.6, grav: 2 });
+        break;
+      case "day":
+        if (e.day % 5 === 0) this.placeArch(s.dist); // arco da UEPG a cada 5 dias
         break;
       case "shieldBlock":
         P.emit(x, 1.0, -0.3, 0x5ad1a8, 24, { speed: 4, up: 2, size: 0.12 });

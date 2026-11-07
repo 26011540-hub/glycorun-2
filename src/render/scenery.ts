@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { UNITS_PER_METER } from "../rules/constants";
 import { seeded, textTexture, type Prefab } from "./builder";
 import { ROAD_W, VIEW_FAR } from "./config";
+import { Arch } from "./landmarks";
 import { buildPrefabs } from "./props";
 
 /**
@@ -99,7 +100,7 @@ function radialTexture(color: string): THREE.CanvasTexture {
 }
 
 /** O que vai em cada bloco, de cada lado (coordenadas do lado direito). */
-function layout(biome: Biome, side: -1 | 1, i: number): Placed[] {
+function layout(biome: Biome | "campus", side: -1 | 1, i: number, clear = false): Placed[] {
   const r = seeded(i * 2 + (side > 0 ? 1 : 0));
   const pick = <T>(a: readonly T[]) => a[Math.floor(r() * a.length)];
   const out: Placed[] = [];
@@ -148,6 +149,17 @@ function layout(biome: Biome, side: -1 | 1, i: number): Placed[] {
       if (r() < 0.2) out.push({ id: `pipa${Math.floor(r() * 3)}`, x: VERGE_X + 6, z: r() * 20 });
       lamp();
       break;
+    case "campus":
+      // gramados e araucárias em volta da entrada da universidade; perto do arco o terreno fica livre
+      if (clear) {
+        // só ao fundo, longe dos pilares e da guarita
+        for (let k = 0; k < 3; k++) out.push({ id: `araucaria${Math.floor(r() * 2)}`, x: VERGE_X + 12 + r() * 12, z: r() * 20 });
+        break;
+      }
+      for (let k = 0; k < 4; k++) out.push({ id: r() < 0.7 ? `araucaria${Math.floor(r() * 2)}` : "mangueira", x: VERGE_X + 1.5 + r() * 13, z: r() * 20 });
+      if (r() < 0.4) out.push({ id: "banco", x: HALF + 1.9, z: 5 });
+      lamp();
+      break;
     case "orla":
       out.push({ id: `coqueiro${Math.floor(r() * 2)}`, x: HALF + 1.8, z: 4 });
       out.push({ id: `coqueiro${Math.floor(r() * 2)}`, x: HALF + 1.8, z: 14 });
@@ -165,7 +177,8 @@ function layout(biome: Biome, side: -1 | 1, i: number): Placed[] {
   return out;
 }
 
-const VERGE: Record<Biome, [string, string]> = {
+const VERGE: Record<Biome | "campus", [string, string]> = {
+  campus: ["vergePark", "vergePark"],
   bairro: ["vergeGrass", "vergeGrass"],
   feira: ["vergePlaza", "vergePlaza"],
   parque: ["vergePark", "vergePark"],
@@ -240,6 +253,12 @@ export class Scenery {
   readonly group = new THREE.Group();
   /** Falso na qualidade baixa: pula os detalhes menores. */
   rich = true;
+  /** Avisa quando o jogador passa sob o arco da UEPG. */
+  onArch: (() => void) | null = null;
+  private arch: Arch | null = null;
+  private archAt: number | null = null; // posição do arco ao longo da rua
+  private archPassed = false;
+  private lastDist = 0;
   private prefabs = buildPrefabs();
   private kinds = new Map<string, Instances>();
   private chunks = new Map<number, Handle[]>();
@@ -273,7 +292,11 @@ export class Scenery {
 
   private spawn(i: number): void {
     const a = i * CHUNK;
-    const biome = biomeAt(a + CHUNK / 2);
+    // perto do arco, o trecho vira campus: gramado e araucárias
+    const at = this.archAt;
+    const campus = at !== null && a + CHUNK > at - 70 && a < at + 50;
+    const clear = at !== null && a + CHUNK > at - 20 && a < at + 18;
+    const biome = campus ? "campus" : biomeAt(a + CHUNK / 2);
     const list: Handle[] = [];
     const put = (id: string, x: number, z: number, ry: number) => {
       if (!this.rich && DECOR.test(id)) return;
@@ -281,9 +304,9 @@ export class Scenery {
     };
     for (const side of [-1, 1] as const) {
       const ry = side < 0 ? Math.PI : 0;
-      put(`walk:${biome}`, side * (HALF + WALK_W / 2), CHUNK / 2, ry);
+      put(`walk:${biome === "campus" ? "bairro" : biome}`, side * (HALF + WALK_W / 2), CHUNK / 2, ry);
       put(VERGE[biome][side < 0 ? 0 : 1], side * VERGE_X, CHUNK / 2, ry);
-      for (const p of layout(biome, side, i)) {
+      for (const p of layout(biome, side, i, clear)) {
         const x = p.center ? p.x : side * p.x;
         put(p.id, x, p.z, p.ry ?? (p.center ? 0 : ry));
         if (p.id === "poste") put("lampPool", side * (HALF - 0.6), p.z, 0);
@@ -291,12 +314,34 @@ export class Scenery {
         if (SHADOWED.test(p.id)) put("sombra", x, p.z, 0);
       }
     }
+    if (at !== null && at - 8 >= a && at - 8 < a + CHUNK) put("faixa", 0, at - 8 - a, 0);
     this.chunks.set(i, list);
+  }
+
+  /** Coloca o arco da UEPG na rua, além do que já está à vista. */
+  placeArch(at: number): void {
+    if (this.archAt !== null) return;
+    if (!this.arch) { this.arch = new Arch(); this.group.add(this.arch.group); }
+    this.arch.group.position.z = -at;
+    this.arch.group.visible = true;
+    this.archAt = at;
+    this.archPassed = false;
+  }
+
+  private clearArch(): void {
+    this.archAt = null;
+    if (this.arch) this.arch.group.visible = false;
   }
 
   /** dist em unidades do jogo; night 0–1 acende as luzes da rua. */
   update(dist: number, night: number, ahead = VIEW_FAR): void {
     this.group.position.z = dist;
+    if (dist < this.lastDist - 50) this.clearArch(); // nova corrida
+    this.lastDist = dist;
+    if (this.archAt !== null) {
+      if (!this.archPassed && this.archAt - dist < 5) { this.archPassed = true; this.onArch?.(); }
+      if (this.archAt < dist - 30) this.clearArch();
+    }
     const first = Math.floor((dist - 16) / CHUNK), last = Math.floor((dist + ahead) / CHUNK);
     for (const [i, list] of this.chunks) {
       if (i < first || i > last) {

@@ -50,6 +50,11 @@ const canvas = $<HTMLCanvasElement>("game");
 const world = new World3D(canvas);
 world.setSkin(skin);
 world.dogs.onBark = () => audio.play("bark");
+world.onArch = () => {
+  banner("UEPG<small>Universidade Estadual de Ponta Grossa</small>");
+  audio.play("win");
+  buzz(40);
+};
 const hud = new Hud();
 initGaugeBar();
 buildStaticScreens(TOUCH, skin, (s) => { skin = s; store.setItem("glycorun2-skin", s); world.setSkin(s); sfx("click"); });
@@ -122,6 +127,7 @@ function start() {
 function go() {
   setMode("run");
   toast(state, MSG.start, 3);
+  if (new URLSearchParams(location.search).has("arco")) world.placeArch(state.dist); // atalho para a apresentação
   audio.tempo = 108;
   audio.boss = false;
   audio.setDuck(1);
