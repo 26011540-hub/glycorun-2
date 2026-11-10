@@ -100,7 +100,7 @@ export class World3D {
   set onArch(f: () => void) { this.scenery.onArch = f; }
   readonly dogs = new Dogs();
   readonly bruce = new Bruce();
-  /** Mini Bruce do visual exclusivo "Doutor(a)". */
+  /** Mini Bruce do visual exclusivo "Parceiro do Bruce". */
   private pup = new Bruce(0.5);
   private pupOn = false;
   private pupSide = 1;
@@ -310,7 +310,7 @@ export class World3D {
 
   setSkin(skin: SkinId): void {
     this.hero.setSkin(skin);
-    this.pupOn = skin === "medico";
+    this.pupOn = skin === "parceiro";
     if (!this.pupOn) this.pup.stop();
   }
 

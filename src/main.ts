@@ -47,8 +47,8 @@ const invited = hasInvite(location.search);
 if (invited) store.setItem("glycorun2-vip", "1");
 const vipOn = () => store.getItem("glycorun2-vip") === "1";
 let skin = (store.getItem("glycorun2-skin") as SkinId) || "corredor";
-if (invited) { skin = "medico"; store.setItem("glycorun2-skin", skin); }
-if (!SKINS.some((s) => s.id === skin) || (skin === "medico" && !vipOn())) skin = "corredor";
+if (invited) { skin = "parceiro"; store.setItem("glycorun2-skin", skin); }
+if (!SKINS.some((s) => s.id === skin) || (skin === "parceiro" && !vipOn())) skin = "corredor";
 let vibrate = store.getItem("glycorun2-vibe") !== "0";
 audio.muted = store.getItem("glycorun2-mute") === "1";
 

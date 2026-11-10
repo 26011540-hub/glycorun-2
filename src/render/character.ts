@@ -42,14 +42,13 @@ export interface AnimInput {
 
 // ---------- Aparência ----------
 const SKIN_TONE = 0x9a6847;
-interface Outfit { shirt: number; vest?: number; shorts: number; band: number; shoe: number; sole: number; legs?: number; hand?: number; sleeve?: number }
+interface Outfit { shirt: number; vest?: number; shorts: number; band: number; shoe: number; sole: number; legs?: number }
 const OUTFIT: Record<SkinId, Outfit> = {
   corredor: { shirt: 0x2f7fe0, shorts: 0x22324a, band: 0x18263a, shoe: 0xb6ff3b, sole: 0xff4f8b },
   fone: { shirt: 0x6f55e0, shorts: 0x2a2f45, band: 0x1c2032, shoe: 0xf4f4f4, sole: 0x6f55e0 },
   mochila: { shirt: 0xf08a3c, shorts: 0x22324a, band: 0x18263a, shoe: 0xf4f4f4, sole: 0xe2483d },
   acs: { shirt: 0xe9f1fa, vest: 0x1f5fa8, shorts: 0x3a4a63, band: 0x2c394e, shoe: 0x2e2a28, sole: 0x111111, legs: 0x3a4a63 },
-  // jaleco branco por cima do pijama cirúrgico verde-azulado
-  medico: { shirt: 0xf7f8f6, vest: 0xf7f8f6, shorts: 0x2f8f9d, band: 0xf7f8f6, shoe: 0xf4f6f8, sole: 0x2f8f9d, legs: 0x2f8f9d, hand: 0x7fb3e6, sleeve: 0xf2f4f2 }, // luvas cirúrgicas azuis
+  parceiro: { shirt: 0x2f7fe0, shorts: 0x22324a, band: 0x18263a, shoe: 0xb6ff3b, sole: 0xff4f8b }, // roupa do Corredor; o especial é o mini Bruce
 };
 const HYPER_SHIRT = new THREE.Color(0xe46a4f);
 
@@ -85,36 +84,6 @@ function hair(): THREE.BufferGeometry[] {
     g.setAttribute("position", new THREE.Float32BufferAttribute(list, 3));
     return g;
   });
-}
-
-/**
- * Aba longa do jaleco (do quadril ao joelho), aberta na frente. Cada metade acompanha um pouco a coxa
- * do seu lado, então o jaleco balança ao correr em vez de atravessar as pernas.
- * inner = forro: a mesma peça um pouco menor, virada para dentro.
- */
-function coatSkirt(color: number, inner: boolean): Part {
-  const top = 1.0, bot = 0.5, GAP = 0.9, d = inner ? 0.006 : 0;
-  const g = new THREE.CylinderGeometry(0.205 - d, 0.25 - d, top - bot, 22, 4, true, Math.PI + GAP / 2, Math.PI * 2 - GAP).toNonIndexed();
-  g.scale(1, 1, 0.8);
-  g.translate(0, (top + bot) / 2, 0.01);
-  const a = g.attributes.position, rnd = seeded(inner ? 71 : 72);
-  const part: Part = { pos: [], fat: [], bones: [], wts: [], roles: [], shade: [], skin: "medico" };
-  const hips = JOINTS.indexOf("hips"), L = JOINTS.indexOf("thighL"), R = JOINTS.indexOf("thighR");
-  for (let i = 0; i < a.count; i += 3) {
-    const tone = (inner ? 0.86 : 1) * (1 + (rnd() - 0.5) * 0.06);
-    for (const k of inner ? [0, 2, 1] : [0, 1, 2]) {
-      const x = a.getX(i + k), y = a.getY(i + k), z = a.getZ(i + k), len = Math.hypot(x, z) || 1;
-      const t = Math.max(0, Math.min(1, (0.95 - y) / 0.45)) * 0.55;
-      part.pos.push(x, y, z);
-      part.fat.push((x / len) * 0.07, 0, (z / len) * 0.07);
-      part.bones.push(hips, x < 0 ? L : R);
-      part.wts.push(1 - t, t);
-      part.roles.push(color);
-      part.shade.push(tone * (0.9 + 0.12 * (y - bot) / (top - bot)));
-    }
-  }
-  g.dispose();
-  return part;
 }
 
 function buildParts(): Part[] {
@@ -193,24 +162,24 @@ function buildParts(): Part[] {
       { y: 1.42, x, rx: 0.057, rf: 0.064, role: "shirt", w: one(ar), fx: 0.012, ff: 0.012, sh: 1.04 },
       { y: 1.34, x, rx: 0.055, rf: 0.059, role: "shirt", w: one(ar), fx: 0.018, ff: 0.018 },
       { y: 1.3, x, rx: 0.054, rf: 0.057, role: "shirt", w: one(ar), fx: 0.018, ff: 0.018, sh: 0.86 },
-      { y: 1.3, x, rx: 0.047, rf: 0.05, role: "sleeve", w: one(ar), fx: 0.016, ff: 0.016, sh: 0.8 },
-      { y: 1.24, x, rx: 0.046, rf: 0.052, role: "sleeve", w: one(ar), fx: 0.016, ff: 0.016 },
-      { y: 1.18, x, rx: 0.04, rf: 0.042, role: "sleeve", w: mix(ar, fo, 0.1), fx: 0.01, ff: 0.01 },
-      { y: 1.15, x, rx: 0.039, rf: 0.038, role: "sleeve", w: mix(ar, fo, 0.5), fx: 0.006, ff: 0.006 },
-      { y: 1.115, x, rx: 0.042, rf: 0.042, role: "sleeve", w: mix(ar, fo, 0.88), fx: 0.008, ff: 0.008 },
-      { y: 1.06, x, rx: 0.043, rf: 0.044, role: "sleeve", w: one(fo), fx: 0.008, ff: 0.008 },
-      { y: 0.98, x, rx: 0.033, rf: 0.034, role: "hand", w: one(fo), fx: 0.004, ff: 0.004 },
-      { y: 0.915, x, rx: 0.025, rf: 0.031, role: "hand", w: one(fo) },
-      { y: 0.885, x, rx: 0.016, rf: 0.036, role: "hand", w: one(fo) },
+      { y: 1.3, x, rx: 0.047, rf: 0.05, role: "skin", w: one(ar), fx: 0.016, ff: 0.016, sh: 0.8 },
+      { y: 1.24, x, rx: 0.046, rf: 0.052, role: "skin", w: one(ar), fx: 0.016, ff: 0.016 },
+      { y: 1.18, x, rx: 0.04, rf: 0.042, role: "skin", w: mix(ar, fo, 0.1), fx: 0.01, ff: 0.01 },
+      { y: 1.15, x, rx: 0.039, rf: 0.038, role: "skin", w: mix(ar, fo, 0.5), fx: 0.006, ff: 0.006 },
+      { y: 1.115, x, rx: 0.042, rf: 0.042, role: "skin", w: mix(ar, fo, 0.88), fx: 0.008, ff: 0.008 },
+      { y: 1.06, x, rx: 0.043, rf: 0.044, role: "skin", w: one(fo), fx: 0.008, ff: 0.008 },
+      { y: 0.98, x, rx: 0.033, rf: 0.034, role: "skin", w: one(fo), fx: 0.004, ff: 0.004 },
+      { y: 0.915, x, rx: 0.025, rf: 0.031, role: "skin", w: one(fo) },
+      { y: 0.885, x, rx: 0.016, rf: 0.036, role: "skin", w: one(fo) },
     ];
     P.push(loft(arm, { seg: 8, capStart: true, capEnd: true, seed: 40 + s }));
     // mão: palma e dedos
-    P.push(rigid(new B(0.028, 0.075, 0.072), fo, "hand", { x, y: 0.865 }));
+    P.push(rigid(new B(0.028, 0.075, 0.072), fo, "skin", { x, y: 0.865 }));
     for (let k = 0; k < 4; k++) {
       const z = -0.027 + k * 0.018, len = k === 0 || k === 3 ? 0.052 : 0.064;
-      P.push(rigid(new B(0.017, len, 0.0155), fo, "hand", { x: x - s * 0.006, y: 0.83 - len / 2, z, rz: s * 0.16, sh: 0.97 }));
+      P.push(rigid(new B(0.017, len, 0.0155), fo, "skin", { x: x - s * 0.006, y: 0.83 - len / 2, z, rz: s * 0.16, sh: 0.97 }));
     }
-    P.push(rigid(new B(0.019, 0.055, 0.018), fo, "hand", { x: x - s * 0.012, y: 0.86, z: -0.05, rx: 0.5, rz: s * 0.2 }));
+    P.push(rigid(new B(0.019, 0.055, 0.018), fo, "skin", { x: x - s * 0.012, y: 0.86, z: -0.05, rx: 0.5, rz: s * 0.2 }));
   }
   // sensor de glicose (CGM) atrás do braço esquerdo
   P.push(rigid(new Cy(0.03, 0.03, 0.012, 10), "armL", "white", { x: -ARM_X, y: 1.245, z: 0.056, rx: Math.PI / 2, fat: [0, 0, 0.016] }));
@@ -229,7 +198,7 @@ function buildParts(): Part[] {
   const [hairDark, hairLight] = hair();
   P.push(rigid(hairDark, "head", "hair"), rigid(hairLight, "head", "hairLight"));
   for (const [x, z, rz, rx, role] of [[-0.055, -0.108, -0.35, 0.22, "hair"], [0.0, -0.122, 0.1, 0.25, "hairLight"], [0.058, -0.106, 0.4, 0.22, "hair"]] as const) {
-    P.push(rigid(new Co(0.036, 0.06, 4), "head", role, { x, y: 1.74, z: z * 0.92, rx: Math.PI + rx, rz, skin: "!medico" })); // some sob a touca
+    P.push(rigid(new Co(0.036, 0.06, 4), "head", role, { x, y: 1.74, z: z * 0.92, rx: Math.PI + rx, rz }));
   }
   for (const s of [-1, 1]) {
     P.push(rigid(new S(0.026, 6, 5), "head", "skin", { x: s * 0.097, y: 1.64, sx: 0.55, sy: 1.15, sh: 0.94 }));
@@ -243,6 +212,8 @@ function buildParts(): Part[] {
   // Corredor: faixa de cabeça
   P.push(rigid(new To(1, 0.13, 5, 18), "head", 0xff4f8b, { y: 1.7, rx: Math.PI / 2, sx: 0.116, sy: 0.128, sz: 0.1, skin: "corredor" }));
   P.push(rigid(new B(0.028, 0.1, 0.01), "head", 0xff4f8b, { x: 0.02, y: 1.665, z: 0.128, rx: 0.3, rz: 0.3, skin: "corredor" }));
+  P.push(rigid(new To(1, 0.13, 5, 18), "head", 0xff4f8b, { y: 1.7, rx: Math.PI / 2, sx: 0.116, sy: 0.128, sz: 0.1, skin: "parceiro" }));
+  P.push(rigid(new B(0.028, 0.1, 0.01), "head", 0xff4f8b, { x: 0.02, y: 1.665, z: 0.128, rx: 0.3, rz: 0.3, skin: "parceiro" }));
   // Fone de ouvido
   P.push(rigid(new To(0.126, 0.014, 5, 16, Math.PI), "head", 0x2b2250, { y: 1.655, skin: "fone" }));
   for (const s of [-1, 1]) {
@@ -266,46 +237,6 @@ function buildParts(): Part[] {
   P.push(rigid(new B(0.07, 0.05, 0.215), "hips", 0x6f4730, { x: -0.215, y: 1.04, fat: [-0.05, 0, 0], skin: "acs" }));
   P.push(rigid(new B(0.024, 0.6, 0.012), "torso", 0x8a5a3b, { y: 1.26, z: 0.122, rz: 0.62, fat: back(0.04), skin: "acs" }));
   P.push(rigid(new B(0.024, 0.6, 0.012), "torso", 0x8a5a3b, { y: 1.26, z: -0.128, rz: 0.62, fat: back(-0.07), skin: "acs" }));
-  // ----- Doutor(a): jaleco longo e aberto, mangas compridas, máscara, luvas, touca e estetoscópio -----
-  const COAT = 0xf7f8f6, LINING = 0xdfe5e6, SCRUB = 0x2f8f9d, TUBE = 0x22303f, MASK = 0x9fd3e8;
-  const md = { skin: "medico" } as const;
-  const front = (d: number) => back(d); // peças na frente acompanham a barriga ao engordar
-  P.push(coatSkirt(COAT, false), coatSkirt(LINING, true));
-  // pijama aparecendo na abertura do jaleco
-  P.push(rigid(new B(0.085, 0.2, 0.012), "torso", SCRUB, { y: 1.36, z: -0.124, fat: front(-0.05), ...md }));
-  P.push(rigid(new B(0.075, 0.22, 0.012), "torso", SCRUB, { y: 1.15, z: -0.106, rx: -0.08, fat: front(-0.07), ...md }));
-  for (const s of [-1, 1]) {
-    // lapelas largas: gola no alto, ponta e a borda que desce até a cintura
-    P.push(rigid(new B(0.075, 0.16, 0.016), "torso", COAT, { x: s * 0.075, y: 1.405, z: -0.128, rz: s * 0.42, rx: -0.12, fat: front(-0.05), sh: 1.04, ...md }));
-    P.push(rigid(new B(0.05, 0.08, 0.016), "torso", COAT, { x: s * 0.098, y: 1.31, z: -0.132, rz: -s * 0.5, fat: front(-0.05), sh: 1.06, ...md }));
-    P.push(rigid(new B(0.03, 0.26, 0.016), "torso", COAT, { x: s * 0.058, y: 1.16, z: -0.112, rx: -0.08, fat: front(-0.07), sh: 1.02, ...md }));
-    P.push(rigid(new B(0.05, 0.05, 0.06), "torso", COAT, { x: s * 0.07, y: 1.47, z: -0.07, rz: s * 0.5, ...md })); // gola
-    // manga comprida: o braço já é da cor do jaleco; aqui só o punho
-    const fo: Joint = s < 0 ? "foreL" : "foreR", x = s * ARM_X;
-    P.push(rigid(new Cy(0.05, 0.05, 0.03, 8), fo, LINING, { x, y: 1.0, ...md })); // punho
-    // bolsos na aba
-    const th = Math.PI - 0.95, r = 0.232;
-    P.push(rigid(new B(0.1, 0.1, 0.008), "hips", 0xeef1f1, { x: s * Math.sin(th) * r, y: 0.83, z: Math.cos(th) * r * 0.8, ry: s * (th - Math.PI), ...md }));
-    P.push(rigid(new B(0.11, 0.018, 0.01), "hips", LINING, { x: s * Math.sin(th) * (r + 0.004), y: 0.885, z: Math.cos(th) * (r + 0.004) * 0.8, ry: s * (th - Math.PI), ...md }));
-    // elástico da máscara até a orelha
-    P.push(rigid(new B(0.006, 0.006, 0.1), "head", 0xf4f6f8, { x: s * 0.097, y: 1.618, z: -0.045, rx: -0.15, ...md }));
-  }
-  for (let k = 0; k < 3; k++) P.push(rigid(new S(0.009, 6, 4), "torso", 0xd5dadb, { x: -0.05, y: 1.23 - k * 0.075, z: -0.125 + k * 0.006, ...md }));
-  // bolso do peito com caneta e crachá
-  P.push(rigid(new B(0.075, 0.075, 0.01), "torso", 0xeef1f1, { x: -0.105, y: 1.27, z: -0.122, fat: front(-0.05), ...md }));
-  P.push(rigid(new B(0.008, 0.07, 0.008), "torso", 0x2f7fe0, { x: -0.12, y: 1.3, z: -0.13, fat: front(-0.05), ...md }));
-  P.push(rigid(new B(0.06, 0.075, 0.008), "torso", 0x2f7fe0, { x: 0.105, y: 1.27, z: -0.125, fat: front(-0.05), ...md }));
-  P.push(rigid(new B(0.05, 0.035, 0.01), "torso", 0xffffff, { x: 0.105, y: 1.275, z: -0.129, fat: front(-0.05), ...md }));
-  // máscara cirúrgica com pregas, cobrindo nariz e boca
-  P.push(rigid(new S(0.075, 12, 8), "head", MASK, { y: 1.598, z: -0.078, sx: 1.38, sy: 0.6, sz: 0.88, ...md }));
-  for (let k = 0; k < 3; k++) P.push(rigid(new B(0.17, 0.004, 0.006), "head", 0x86c2db, { y: 1.575 + k * 0.022, z: -0.14 + Math.abs(k - 1) * 0.004, ...md }));
-  // touca cirúrgica
-  P.push(rigid(new S(0.136, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.55), "head", SCRUB, { y: 1.672, sz: 1.06, ...md }));
-  P.push(rigid(new B(0.03, 0.06, 0.012), "head", SCRUB, { x: 0.03, y: 1.64, z: 0.13, rz: 0.3, ...md }));
-  // estetoscópio pendurado no pescoço, com o disco no peito
-  P.push(rigid(new To(0.11, 0.011, 5, 18), "torso", TUBE, { y: 1.47, rx: Math.PI / 2 - 0.25, sx: 1.05, ...md }));
-  for (const s of [-1, 1]) P.push(rigid(new Cy(0.01, 0.01, 0.17, 5), "torso", TUBE, { x: s * 0.05, y: 1.37, z: -0.136, rz: s * 0.16, fat: front(-0.05), ...md }));
-  P.push(rigid(new Cy(0.03, 0.03, 0.014, 10), "torso", 0xc9ced6, { x: 0.045, y: 1.28, z: -0.142, rx: Math.PI / 2, fat: front(-0.05), ...md }));
   return P;
 }
 
@@ -322,7 +253,6 @@ export class Character {
   private skin: SkinId = "corredor";
   private shirtTint = -1;
   private label: THREE.Mesh;
-  private coatLabel: THREE.Mesh;
   private shoulders: THREE.Bone[] = [];
   private hipJoints: THREE.Bone[] = [];
   private pose: Pose = { ...STAND };
@@ -345,13 +275,6 @@ export class Character {
     );
     this.label.position.set(0, 0.34, 0.124);
     this.j.torso.add(this.label);
-    // "MEDICINA" nas costas do jaleco
-    this.coatLabel = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.24, 0.07),
-      new THREE.MeshBasicMaterial({ map: textTexture("MEDICINA", { w: 192, h: 56, fg: "#1f6f7a" }), transparent: true }),
-    );
-    this.coatLabel.position.set(0, 0.33, 0.124);
-    this.j.torso.add(this.coatLabel);
     this.setSkin("corredor");
     this.setFat(this.fatNow);
   }
@@ -385,7 +308,7 @@ export class Character {
     if (typeof role === "number") return out.setHex(role);
     const o = OUTFIT[this.skin];
     const map: Record<Exclude<Role, number>, number> = {
-      skin: SKIN_TONE, hand: o.hand ?? SKIN_TONE, sleeve: o.sleeve ?? SKIN_TONE, hair: 0x2b1b1e, hairLight: 0x6a4630, shirt: o.shirt, vest: o.vest ?? o.shirt, shorts: o.shorts, band: o.band,
+      skin: SKIN_TONE, hair: 0x2b1b1e, hairLight: 0x6a4630, shirt: o.shirt, vest: o.vest ?? o.shirt, shorts: o.shorts, band: o.band,
       shoe: o.shoe, sole: o.sole, legs: o.legs ?? SKIN_TONE, white: 0xf4f6f8, dark: 0x1b1b1f,
     };
     return out.setHex(map[role]);
@@ -394,9 +317,8 @@ export class Character {
   setSkin(skin: SkinId): void {
     this.skin = skin;
     this.label.visible = skin === "acs";
-    this.coatLabel.visible = skin === "medico";
     if (this.mesh) { this.mesh.removeFromParent(); this.mesh.geometry.dispose(); }
-    const { geo, roles, shade } = assemble(this.parts.filter((p) => !p.skin || p.skin === skin || (p.skin[0] === "!" && p.skin.slice(1) !== skin)), (r, c) => this.color(r, c));
+    const { geo, roles, shade } = assemble(this.parts.filter((p) => !p.skin || p.skin === skin), (r, c) => this.color(r, c));
     this.shade = shade;
     const shirt = this.color("shirt", new THREE.Color()), vest = this.color("vest", new THREE.Color());
     this.tinted = [];
@@ -417,7 +339,6 @@ export class Character {
     this.shoulders.forEach((s, i) => (s.position.x = (i ? 1 : -1) * ARM_X * (1 + 0.16 * fat)));
     this.hipJoints.forEach((h, i) => (h.position.x = (i ? 1 : -1) * 0.09 * (1 + 0.22 * fat)));
     this.label.position.z = 0.124 + 0.036 * fat;
-    this.coatLabel.position.z = 0.124 + 0.036 * fat;
   }
 
   /** Camisa avermelhada na hiperglicemia (como no original). Só reescreve as cores quando mudam. */

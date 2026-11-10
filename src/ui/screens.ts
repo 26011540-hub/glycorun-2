@@ -19,7 +19,7 @@ export function showOnly(id: Screen | null): void {
   for (const o of SCREENS) $(o).hidden = o !== id;
 }
 
-const SKIN_ICON: Record<SkinId, string> = { corredor: "🏃", fone: "🎧", mochila: "🎒", acs: "🩺", medico: "🥼" };
+const SKIN_ICON: Record<SkinId, string> = { corredor: "🏃", fone: "🎧", mochila: "🎒", acs: "🩺", parceiro: "🐶" };
 
 /** Monta os textos fixos das telas a partir de src/content. */
 export function buildStaticScreens(touch: boolean, skin: SkinId, onSkin: (s: SkinId) => void, unlocked: () => boolean): void {

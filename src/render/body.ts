@@ -20,7 +20,7 @@ export const JOINTS: readonly Joint[] = [
 ];
 export const ALL_JOINTS: readonly Joint[] = [...JOINTS, "neck", "jaw", "tail1", "tail2"];
 
-export type Role = "skin" | "hand" | "sleeve" | "hair" | "hairLight" | "shirt" | "vest" | "shorts" | "band" | "shoe" | "sole" | "legs" | "white" | "dark" | number;
+export type Role = "skin" | "hair" | "hairLight" | "shirt" | "vest" | "shorts" | "band" | "shoe" | "sole" | "legs" | "white" | "dark" | number;
 
 /** Influência de ossos: [osso, peso] ou dois pares que somam 1. */
 export type Weights = [Joint, number][];
@@ -47,7 +47,7 @@ export interface Part {
   wts: number[]; // 2 pesos por vértice
   roles: Role[]; // 1 por vértice
   shade: number[]; // 1 por vértice
-  skin?: string; // só aparece nesse visual; "!x" = aparece em todos menos no x
+  skin?: string; // só aparece nesse visual
 }
 
 const idx = (j: Joint) => ALL_JOINTS.indexOf(j);

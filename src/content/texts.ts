@@ -64,17 +64,17 @@ export const SKINS = [
   { id: "fone", label: "Fone de ouvido" },
   { id: "mochila", label: "Mochila de hidratação" },
   { id: "acs", label: "ACS" }, // substitui o Estetoscópio (decisão do autor)
-  { id: "medico", label: "Doutor(a) + Bruce", exclusive: true }, // só com o link da apresentação
+  { id: "parceiro", label: "Parceiro do Bruce", exclusive: true }, // roupa do Corredor + mini Bruce; só com o link da apresentação
 ] as const;
 export type SkinId = (typeof SKINS)[number]["id"];
 
 /**
  * Link da apresentação: quem abre o jogo com ?convite=drbruce ganha o visual exclusivo
- * (jaleco + mini Bruce correndo junto). Fica guardado no aparelho.
+ * (mini Bruce correndo junto). Fica guardado no aparelho.
  */
 export const INVITE = {
   code: "drbruce",
-  banner: "Visual exclusivo!<small>Doutor(a) com o mini Bruce</small>",
+  banner: "Visual exclusivo!<small>O mini Bruce vai correr com você</small>",
   locked: "Exclusivo de quem entrou pelo link da apresentação.",
 };
 
