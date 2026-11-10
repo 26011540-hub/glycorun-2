@@ -13,14 +13,15 @@ import { flushPending, globalOn, loadGlobal, sendGlobal } from "./core/online";
 import { lightAt } from "./rules/environment";
 import { TARGET_HIGH } from "./rules/glucose";
 import type { Question } from "./content/quiz";
-import { BRUCE_BANNER, GLOBAL, MSG, SKINS, type SkinId } from "./content/texts";
+import { BRUCE_BANNER, GLOBAL, INVITE, MSG, SKINS, type SkinId } from "./content/texts";
+import { hasInvite } from "./rules/invite";
 import { World3D, type ViewMode } from "./render/world";
 import { biomeAt, BIOME_NAMES, type Biome } from "./render/scenery";
 import { bindInput } from "./input/input";
 import { audio, type Sfx } from "./audio/audio";
 import { Hud, initGaugeBar, type Tone } from "./ui/hud";
 import { AutoQuality, QUALITY_LABEL, type QualityChoice } from "./core/quality";
-import { banner, buildStaticScreens, renderBoard, renderGlobal, showAnswer, showGameOver, showOnly, showQuestion, type Screen } from "./ui/screens";
+import { banner, buildStaticScreens, refreshSkins, renderBoard, renderGlobal, showAnswer, showGameOver, showOnly, showQuestion, type Screen } from "./ui/screens";
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const TOUCH = matchMedia("(pointer: coarse)").matches;
@@ -41,8 +42,13 @@ let lastEntry: string | null = null;
 let saved = false;
 let countT = 0;
 let biome: Biome = "bairro";
+// Visual exclusivo: o link da apresentação (?convite=drbruce) desbloqueia e já veste
+const invited = hasInvite(location.search);
+if (invited) store.setItem("glycorun2-vip", "1");
+const vipOn = () => store.getItem("glycorun2-vip") === "1";
 let skin = (store.getItem("glycorun2-skin") as SkinId) || "corredor";
-if (!SKINS.some((s) => s.id === skin)) skin = "corredor";
+if (invited) { skin = "medico"; store.setItem("glycorun2-skin", skin); }
+if (!SKINS.some((s) => s.id === skin) || (skin === "medico" && !vipOn())) skin = "corredor";
 let vibrate = store.getItem("glycorun2-vibe") !== "0";
 audio.muted = store.getItem("glycorun2-mute") === "1";
 
@@ -61,7 +67,11 @@ world.onArch = () => {
 };
 const hud = new Hud();
 initGaugeBar();
-buildStaticScreens(TOUCH, skin, (s) => { skin = s; store.setItem("glycorun2-skin", s); world.setSkin(s); sfx("click"); });
+buildStaticScreens(TOUCH, skin, (s) => { skin = s; store.setItem("glycorun2-skin", s); world.setSkin(s); sfx("click"); }, vipOn);
+if (invited) {
+  setTimeout(() => banner(INVITE.banner), 600);
+  refreshSkins(true);
+}
 
 new ResizeObserver(() => { world.resize(canvas.clientWidth, canvas.clientHeight); drawnStill = false; }).observe(canvas);
 world.resize(canvas.clientWidth, canvas.clientHeight);

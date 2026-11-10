@@ -64,8 +64,19 @@ export const SKINS = [
   { id: "fone", label: "Fone de ouvido" },
   { id: "mochila", label: "Mochila de hidratação" },
   { id: "acs", label: "ACS" }, // substitui o Estetoscópio (decisão do autor)
+  { id: "medico", label: "Doutor(a) + Bruce", exclusive: true }, // só com o link da apresentação
 ] as const;
 export type SkinId = (typeof SKINS)[number]["id"];
+
+/**
+ * Link da apresentação: quem abre o jogo com ?convite=drbruce ganha o visual exclusivo
+ * (jaleco + mini Bruce correndo junto). Fica guardado no aparelho.
+ */
+export const INVITE = {
+  code: "drbruce",
+  banner: "Visual exclusivo!<small>Doutor(a) com o mini Bruce</small>",
+  locked: "Exclusivo de quem entrou pelo link da apresentação.",
+};
 
 export const SOURCES_INTRO =
   "As perguntas seguem as Diretrizes da Sociedade Brasileira de Diabetes (SBD). Conteúdo educativo: não substitui consulta com profissional de saúde.";

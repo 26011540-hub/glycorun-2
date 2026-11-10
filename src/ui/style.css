@@ -86,9 +86,13 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--ex); outlin
 @keyframes fade { from { opacity: 0; } }
 .sheet { margin-top: auto; background: #fbfdfcf2; border-radius: 24px; padding: 14px; box-shadow: 0 10px 40px #0006; max-width: 480px; width: 100%; align-self: center; box-sizing: border-box; animation: rise .6s .1s var(--ease) both; }
 @keyframes rise { from { transform: translateY(60px); opacity: 0; } }
-.skins { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 10px; }
+.skins { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 10px; }
 .skin { background: #fff; color: var(--ink); border: 2px solid var(--line); border-radius: 14px; padding: 6px 2px 5px; font: 800 10.5px var(--body); line-height: 1.15; display: flex; flex-direction: column; align-items: center; gap: 2px; transition: transform .15s, border-color .15s, background .15s; }
 .skin .ic { font-size: 22px; line-height: 1.1; }
+.skin.vip { position: relative; border-color: var(--gold); background: linear-gradient(180deg, #fffaf0, #fff); }
+.skin.vip .tag { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); background: var(--gold); color: var(--ink); font: 800 8.5px var(--body); text-transform: uppercase; letter-spacing: .4px; padding: 1px 5px; border-radius: 6px; white-space: nowrap; }
+.skin.vip.lock { filter: grayscale(.85); opacity: .62; }
+.skin.vip.lock .ic::after { content: "🔒"; font-size: 13px; position: absolute; margin: 12px 0 0 -8px; }
 .skin[aria-checked="true"] { border-color: var(--ok); background: #eafaf0; transform: translateY(-2px); box-shadow: 0 3px 0 var(--ok); }
 .cta { width: 100%; background: linear-gradient(180deg, #38c077, var(--ok)); color: #fff; font-weight: 700; font-size: 22px; padding: 14px; border-radius: 16px; box-shadow: 0 5px 0 var(--ok2); transition: transform .1s, box-shadow .1s; }
 .cta:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--ok2); }

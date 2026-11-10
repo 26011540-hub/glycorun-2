@@ -48,6 +48,8 @@ const OUTFIT: Record<SkinId, Outfit> = {
   fone: { shirt: 0x6f55e0, shorts: 0x2a2f45, band: 0x1c2032, shoe: 0xf4f4f4, sole: 0x6f55e0 },
   mochila: { shirt: 0xf08a3c, shorts: 0x22324a, band: 0x18263a, shoe: 0xf4f4f4, sole: 0xe2483d },
   acs: { shirt: 0xe9f1fa, vest: 0x1f5fa8, shorts: 0x3a4a63, band: 0x2c394e, shoe: 0x2e2a28, sole: 0x111111, legs: 0x3a4a63 },
+  // jaleco branco por cima do pijama cirúrgico verde-azulado
+  medico: { shirt: 0xf7f8f6, vest: 0xf7f8f6, shorts: 0x2f8f9d, band: 0xf7f8f6, shoe: 0xf4f6f8, sole: 0x2f8f9d, legs: 0x2f8f9d },
 };
 const HYPER_SHIRT = new THREE.Color(0xe46a4f);
 
@@ -234,6 +236,27 @@ function buildParts(): Part[] {
   P.push(rigid(new B(0.07, 0.05, 0.215), "hips", 0x6f4730, { x: -0.215, y: 1.04, fat: [-0.05, 0, 0], skin: "acs" }));
   P.push(rigid(new B(0.024, 0.6, 0.012), "torso", 0x8a5a3b, { y: 1.26, z: 0.122, rz: 0.62, fat: back(0.04), skin: "acs" }));
   P.push(rigid(new B(0.024, 0.6, 0.012), "torso", 0x8a5a3b, { y: 1.26, z: -0.128, rz: 0.62, fat: back(-0.07), skin: "acs" }));
+  // Doutor(a): aba do jaleco até a coxa (aberta na frente para as pernas), gola, bolso, touca e estetoscópio
+  const COAT = 0xf7f8f6, SCRUB = 0x2f8f9d, TUBE = 0x22303f;
+  // aba do jaleco: meio cilindro aberto na frente, que abre um pouco para baixo; o forro é a mesma peça virada para dentro
+  const GAP = 0.8, open = (r0: number, r1: number) => new Cy(r0, r1, 0.3, 16, 1, true, Math.PI + GAP / 2, Math.PI * 2 - GAP);
+  P.push(rigid(open(0.2, 0.24), "hips", COAT, { y: 0.87, sz: 0.8, fat: back(0.04), sh: 0.95, skin: "medico" }));
+  P.push(rigid(open(0.194, 0.233), "hips", 0xdfe4e4, { y: 0.87, sx: -1, sz: 0.8, fat: back(0.04), skin: "medico" }));
+  P.push(rigid(new B(0.01, 0.17, 0.01), "hips", 0xd5dadb, { y: 0.8, z: 0.178, rx: -0.12, fat: back(0.04), skin: "medico" })); // fenda atrás
+  for (const s of [-1, 1]) {
+    // lapelas e bolso no peito
+    P.push(rigid(new B(0.05, 0.2, 0.02), "torso", COAT, { x: s * 0.07, y: 1.36, z: -0.118, rz: s * 0.32, fat: back(-0.05), skin: "medico" }));
+    P.push(rigid(new B(0.06, 0.2, 0.012), "torso", SCRUB, { x: s * 0.02, y: 1.38, z: -0.112, rz: s * 0.3, fat: back(-0.05), skin: "medico" }));
+  }
+  P.push(rigid(new B(0.07, 0.07, 0.012), "torso", 0xe7ebec, { x: -0.08, y: 1.27, z: -0.125, fat: back(-0.05), skin: "medico" }));
+  P.push(rigid(new B(0.008, 0.06, 0.008), "torso", 0x2f7fe0, { x: -0.095, y: 1.3, z: -0.132, fat: back(-0.05), skin: "medico" }));
+  // touca cirúrgica
+  P.push(rigid(new S(0.136, 10, 5, 0, Math.PI * 2, 0, Math.PI * 0.55), "head", SCRUB, { y: 1.672, sz: 1.06, skin: "medico" }));
+  P.push(rigid(new B(0.03, 0.06, 0.012), "head", SCRUB, { x: 0.03, y: 1.64, z: 0.13, rz: 0.3, skin: "medico" }));
+  // estetoscópio pendurado no pescoço, com o disco no peito
+  P.push(rigid(new To(0.105, 0.011, 5, 18), "torso", TUBE, { y: 1.47, rx: Math.PI / 2 - 0.25, sx: 1.05, skin: "medico" }));
+  for (const s of [-1, 1]) P.push(rigid(new Cy(0.01, 0.01, 0.16, 5), "torso", TUBE, { x: s * 0.06, y: 1.37, z: -0.122, rz: s * 0.18, fat: back(-0.05), skin: "medico" }));
+  P.push(rigid(new Cy(0.028, 0.028, 0.014, 10), "torso", 0xc9ced6, { x: 0.07, y: 1.285, z: -0.128, rx: Math.PI / 2, fat: back(-0.05), skin: "medico" }));
   return P;
 }
 
@@ -250,6 +273,7 @@ export class Character {
   private skin: SkinId = "corredor";
   private shirtTint = -1;
   private label: THREE.Mesh;
+  private coatLabel: THREE.Mesh;
   private shoulders: THREE.Bone[] = [];
   private hipJoints: THREE.Bone[] = [];
   private pose: Pose = { ...STAND };
@@ -272,6 +296,13 @@ export class Character {
     );
     this.label.position.set(0, 0.34, 0.124);
     this.j.torso.add(this.label);
+    // "MEDICINA" nas costas do jaleco
+    this.coatLabel = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.24, 0.07),
+      new THREE.MeshBasicMaterial({ map: textTexture("MEDICINA", { w: 192, h: 56, fg: "#1f6f7a" }), transparent: true }),
+    );
+    this.coatLabel.position.set(0, 0.33, 0.124);
+    this.j.torso.add(this.coatLabel);
     this.setSkin("corredor");
     this.setFat(this.fatNow);
   }
@@ -314,6 +345,7 @@ export class Character {
   setSkin(skin: SkinId): void {
     this.skin = skin;
     this.label.visible = skin === "acs";
+    this.coatLabel.visible = skin === "medico";
     if (this.mesh) { this.mesh.removeFromParent(); this.mesh.geometry.dispose(); }
     const { geo, roles, shade } = assemble(this.parts.filter((p) => !p.skin || p.skin === skin), (r, c) => this.color(r, c));
     this.shade = shade;
@@ -336,6 +368,7 @@ export class Character {
     this.shoulders.forEach((s, i) => (s.position.x = (i ? 1 : -1) * ARM_X * (1 + 0.16 * fat)));
     this.hipJoints.forEach((h, i) => (h.position.x = (i ? 1 : -1) * 0.09 * (1 + 0.22 * fat)));
     this.label.position.z = 0.124 + 0.036 * fat;
+    this.coatLabel.position.z = 0.124 + 0.036 * fat;
   }
 
   /** Camisa avermelhada na hiperglicemia (como no original). Só reescreve as cores quando mudam. */

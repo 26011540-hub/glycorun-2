@@ -217,7 +217,7 @@ const BARK_GAP = 0.36; // segundos entre latidos
 const ARRIVE_AHEAD = 40; // distância do jogador quando ele termina de atravessar
 const TURN_TIME = 0.55;
 const FACE_ROAD = Math.PI * 1.3; // de frente para a rua, um pouco voltado para quem vem
-type Stage = "off" | "cross" | "turn" | "bark" | "wait";
+type Stage = "off" | "cross" | "turn" | "bark" | "wait" | "follow";
 
 export class Bruce {
   readonly group = new THREE.Group();
@@ -238,8 +238,13 @@ export class Bruce {
   private jumpV = 0;
   private jumpY = 0;
   private shadow: THREE.Mesh;
+  private fZ = 0;
+  private fRun = false;
+  private fPace = 12;
 
-  constructor() {
+  /** size: 1 = Dr. Bruce; menor = mini Bruce do visual exclusivo. */
+  constructor(size = 1) {
+    this.group.scale.setScalar(size);
     for (const name of ALL_JOINTS) {
       const rest = REST[name];
       if (!rest) continue;
@@ -302,6 +307,22 @@ export class Bruce {
     this.group.visible = true;
   }
 
+  /**
+   * Mini Bruce: corre ao lado do jogador. x e z na tela, y = altura do pulo, ry = para onde olha,
+   * speed = velocidade do jogo (o passo acompanha), running = falso quando o jogador está parado.
+   */
+  follow(x: number, z: number, y: number, ry: number, dt: number, speed: number, running: boolean): void {
+    this.stage = "follow";
+    this.group.visible = true;
+    this.x = x;
+    this.fZ = z;
+    this.jumpY = y;
+    this.ry = ry;
+    this.fRun = running;
+    this.fPace = Math.min(24, 2 * (6.5 + speed * 0.2));
+    this.update(0, dt);
+  }
+
   stop(): void {
     this.stage = "off";
     this.group.visible = false;
@@ -313,7 +334,10 @@ export class Bruce {
     this.clock += dt;
     const J = this.j;
     let trot = 0, pace = 12;
-    if (this.stage === "cross") {
+    if (this.stage === "follow") {
+      trot = this.fRun ? 1 : 0;
+      pace = this.fPace;
+    } else if (this.stage === "cross") {
       // arranca e freia aos poucos, em vez de andar em velocidade constante
       const k = Math.min(1, this.t / this.crossTime), e = 0.5 * k + 0.5 * k * k * (3 - 2 * k);
       const x = SIDE_X - 2 * SIDE_X * e;
@@ -333,10 +357,13 @@ export class Bruce {
       this.onBark?.();
       if (this.barks >= 3) this.stage = "wait";
     }
-    if (this.at < dist - 12) this.stop();
+    const follow = this.stage === "follow";
+    if (!follow && this.at < dist - 12) this.stop();
 
-    this.jumpV -= 9 * dt;
-    this.jumpY = Math.max(0, this.jumpY + this.jumpV * dt);
+    if (!follow) {
+      this.jumpV -= 9 * dt;
+      this.jumpY = Math.max(0, this.jumpY + this.jumpV * dt);
+    }
 
     // Trote: pares diagonais, a pata da frente um pouco adiantada, instante sem apoio na troca dos pares.
     this.phase += dt * pace * (0.4 + 0.6 * trot);
@@ -374,7 +401,7 @@ export class Bruce {
 
     const onWalk = Math.max(0, Math.min(1, (Math.abs(this.x) - ROAD_W / 2 + 0.2) / 0.4)) * 0.07;
     this.body.position.y = onWalk + this.jumpY;
-    this.group.position.set(this.x, 0, -(this.at - dist));
+    this.group.position.set(this.x, 0, follow ? this.fZ : -(this.at - dist));
     this.body.rotation.y = this.ry;
     this.shadow.rotation.z = this.ry;
   }

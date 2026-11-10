@@ -1,6 +1,6 @@
 import { LEGEND, POWER_LEGEND } from "../content/items";
 import type { Question } from "../content/quiz";
-import { BOARD_INTRO, GLOBAL, INTRO, SKINS, SOURCES, SOURCES_INTRO, type SkinId } from "../content/texts";
+import { BOARD_INTRO, GLOBAL, INTRO, INVITE, SKINS, SOURCES, SOURCES_INTRO, type SkinId } from "../content/texts";
 import { nameKey, type GlobalTop } from "../rules/global";
 import { achievements, BOARD_SHOW, loadBoard, type KeyValueStore } from "../rules/scoring";
 import { meters, timeInRange, type GameState } from "../rules/state";
@@ -19,10 +19,10 @@ export function showOnly(id: Screen | null): void {
   for (const o of SCREENS) $(o).hidden = o !== id;
 }
 
-const SKIN_ICON: Record<SkinId, string> = { corredor: "🏃", fone: "🎧", mochila: "🎒", acs: "🩺" };
+const SKIN_ICON: Record<SkinId, string> = { corredor: "🏃", fone: "🎧", mochila: "🎒", acs: "🩺", medico: "🥼" };
 
 /** Monta os textos fixos das telas a partir de src/content. */
-export function buildStaticScreens(touch: boolean, skin: SkinId, onSkin: (s: SkinId) => void): void {
+export function buildStaticScreens(touch: boolean, skin: SkinId, onSkin: (s: SkinId) => void, unlocked: () => boolean): void {
   $("intro").textContent = INTRO;
   for (const [id, list, pw] of [["legend", LEGEND, false], ["powerLegend", POWER_LEGEND, true]] as const) {
     const box = $(id);
@@ -37,14 +37,21 @@ export function buildStaticScreens(touch: boolean, skin: SkinId, onSkin: (s: Ski
   const skins = $("skins");
   const paint = (cur: SkinId) => skins.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.skin === cur)));
   for (const s of SKINS) {
-    const b = el("button", "skin");
+    const special = "exclusive" in s;
+    const b = el("button", special ? "skin vip" : "skin");
     b.dataset.skin = s.id;
     b.setAttribute("role", "radio");
     b.append(el("span", "ic", SKIN_ICON[s.id]), s.label);
-    b.onclick = () => { onSkin(s.id); paint(s.id); };
+    if (special) b.append(el("span", "tag", "exclusivo"));
+    b.onclick = () => {
+      if (special && !unlocked()) { banner(`🔒 Exclusivo<small>${INVITE.locked}</small>`); return; }
+      onSkin(s.id);
+      paint(s.id);
+    };
     skins.append(b);
   }
   paint(skin);
+  refreshSkins(unlocked());
   $("keys").textContent = touch
     ? "Deslize o dedo na pista: para os lados troca de faixa, para cima pula, para baixo abaixa."
     : "Setas ou W A S D: ← → troca de faixa, ↑ pula, ↓ abaixa. P pausa. No celular: deslize o dedo na pista.";
@@ -62,6 +69,11 @@ export function buildStaticScreens(touch: boolean, skin: SkinId, onSkin: (s: Ski
   }
   $("boardIntro").textContent = BOARD_INTRO;
   $("globalIntro").textContent = GLOBAL.intro;
+}
+
+/** Mostra o cadeado no visual exclusivo enquanto ele não foi desbloqueado. */
+export function refreshSkins(unlocked: boolean): void {
+  $("skins").querySelectorAll<HTMLElement>(".skin.vip").forEach((b) => b.classList.toggle("lock", !unlocked));
 }
 
 /** Aba "Todos": pódio com os 3 primeiros e a lista do 4º em diante. */

@@ -100,6 +100,10 @@ export class World3D {
   set onArch(f: () => void) { this.scenery.onArch = f; }
   readonly dogs = new Dogs();
   readonly bruce = new Bruce();
+  /** Mini Bruce do visual exclusivo "Doutor(a)". */
+  private pup = new Bruce(0.5);
+  private pupOn = false;
+  private pupSide = 1;
   private bruceDone = false;
   private roadTex = roadTexture();
   private roadMat = new THREE.MeshLambertMaterial({ map: this.roadTex });
@@ -151,7 +155,7 @@ export class World3D {
     const s = this.scene;
     s.fog = new THREE.Fog(0xcdeefc, 60, VIEW_FAR);
     this.sun.position.set(-8, 14, 6);
-    s.add(this.hemi, this.sun, this.sky.group, this.scenery.group, this.dogs.group, this.bruce.group, this.particles.points);
+    s.add(this.hemi, this.sun, this.sky.group, this.scenery.group, this.dogs.group, this.bruce.group, this.pup.group, this.particles.points);
 
     // rua: um plano só, com a textura correndo
     const roadLen = VIEW_FAR + 30;
@@ -287,6 +291,8 @@ export class World3D {
     for (const g of Object.values(this.bosses)) { g.visible = true; g.position.set(0, 3, -30); }
     this.bruce.group.visible = true;
     this.bruce.group.position.set(0, 0, -30);
+    this.pup.group.visible = true;
+    this.pup.group.position.set(2, 0, -30);
     this.rain.visible = true;
     this.plateTint.visible = true;
     this.quizShield.visible = true;
@@ -298,11 +304,14 @@ export class World3D {
     this.renderer.render(this.scene, this.camera); // variação normal
     undoScenery();
     this.bruce.group.visible = false;
+    this.pup.group.visible = this.pupOn;
     for (const { pool, obj } of obstacles) pool.release(obj);
   }
 
   setSkin(skin: SkinId): void {
     this.hero.setSkin(skin);
+    this.pupOn = skin === "medico";
+    if (!this.pupOn) this.pup.stop();
   }
 
   resize(w: number, h: number): void {
@@ -440,6 +449,12 @@ export class World3D {
     this.insulinRing.visible = s.insShield && playing;
     this.insulinRing.rotation.z = time * 2;
     this.shadow.position.x = x;
+    if (this.pupOn) {
+      // corre do lado de dentro: à direita, ou à esquerda quando o jogador está na faixa da direita
+      this.pupSide += ((s.lane > 0.5 ? -1 : 1) - this.pupSide) * Math.min(1, uiDt * 5);
+      const still = mode === "pause" || mode === "quiz";
+      this.pup.follow(x + this.pupSide * 0.78, playing ? 0.3 : -0.1, s.y, this.turn, still ? 0 : uiDt, s.runSpeed, mode === "run");
+    }
     const sh = (1 / (1 + s.y * 0.5)) * (0.9 + this.fat * 0.35);
     this.shadow.scale.set(sh, sh, sh);
 

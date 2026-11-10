@@ -13,7 +13,9 @@ principalmente no celular em pé, em aula ou em UBS, por adultos e crianças.
   Qualquer mudança deve ser proposta ao usuário antes. `tests/quiz.test.ts` compara com o `GlycoRun.html`.
 - Faixa-alvo decidida pelo usuário: **70–140 mg/dL** (o original usava 70–180). Zonas: <54 vermelho,
   54–69 amarelo (hipo), 70–140 verde, 141–250 amarelo (hiper), >250 vermelho.
-- Visuais do personagem: Corredor, Fone de ouvido, Mochila de hidratação, ACS (substitui o Estetoscópio).
+- Visuais do personagem: Corredor, Fone de ouvido, Mochila de hidratação, ACS (substitui o Estetoscópio) e o exclusivo
+  Doutor(a) + mini Bruce (jaleco, touca, estetoscópio; filhote correndo ao lado), liberado só pelo link `?convite=drbruce`
+  (código em `src/content/texts.ts`, guardado no aparelho).
 - O corpo do personagem fica mais largo com condicionamento baixo (decisão do usuário), de forma suave e não caricata.
 - Hipoglicemia aparece como visão turva e dupla (decisão do usuário; o original usava visão sem cor).
 - Arco da UEPG (`src/render/landmarks.ts`): nos dias múltiplos de 5, com nome em letras próprias, sem o logo oficial.
